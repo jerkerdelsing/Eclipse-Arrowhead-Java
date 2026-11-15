@@ -101,8 +101,20 @@ A.~Bicaku, S.~Maksuti, C.~Hegedűs, M.~Tauber, J.~Delsing, and J.~Eliasson,
   REPLACEMENT-STATUS.md; later PDE results supersede the earlier
   plant-synchronisation limitation.
 
+\bibitem{arrowhead52NetworkModel20261110}
+{Eclipse Arrowhead model library}, ``{Arrowhead-5.2 Papyrus model: Network,
+  Device and generic local-cloud templates},'' Local Papyrus project
+  EclipseArrowhead-5.0-JD, kept in the workspace archive since 15 November 2026
+  and not part of the Eclipse-Arrowhead-SysML repository, 2026,
+  arrowhead-5.2.uml, Network model and applied ArrowheadDSL stereotypes;
+  Arrowhead-5.2.notation, Network diagram. Inspected 10 November 2026. Network
+  classifiers and protocol choices are library definitions, not a deployed
+  address or firewall inventory. The two files are identified by the SHA-256
+  values in the network-model update record of 10 November 2026.
+
 \bibitem{coreSwaps20261020}
-------, ``{Interchangeability rerun, 19--20 October 2026},'' 2026,
+{EISLAB Arrowhead workspace}, ``{Interchangeability rerun, 19--20 October
+  2026},'' 2026,
   arrowhead-test-cloud-java/interchangeability/RESULTS-2026-10-19.md. Five core
   slots, three interleaved implementation transitions and unchanged Java
   support clients.

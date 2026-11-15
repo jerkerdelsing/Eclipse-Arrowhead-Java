@@ -47,6 +47,24 @@ J.~Delsing, ``{Generic System of Systems Design Description: Arrowhead Core
   (Naming\_convention\_2)},'' 2025, roadmap/5.2/Arrowhead SoS
   architecture/Naming\_convention.
 
+\bibitem{arrowhead52NetworkModel20261110}
+{Eclipse Arrowhead model library}, ``{Arrowhead-5.2 Papyrus model: Network,
+  Device and generic local-cloud templates},'' Local Papyrus project
+  EclipseArrowhead-5.0-JD, kept in the workspace archive since 15 November 2026
+  and not part of the Eclipse-Arrowhead-SysML repository, 2026,
+  arrowhead-5.2.uml, Network model and applied ArrowheadDSL stereotypes;
+  Arrowhead-5.2.notation, Network diagram. Inspected 10 November 2026. Network
+  classifiers and protocol choices are library definitions, not a deployed
+  address or firewall inventory. The two files are identified by the SHA-256
+  values in the network-model update record of 10 November 2026.
+
+\bibitem{javaConformance20261107}
+{Eclipse Arrowhead Java reference}, ``{Secure profile, upstream alignment and
+  reference conformance check, 7 November 2026},'' 2026,
+  eclipse-Arrowhead-java: SECURITY-PROFILE.md,
+  documentation/UPSTREAM-ALIGNMENT-5.3.md,
+  verification/tools/verify\_reference\_conformance.py.
+
 \bibitem{ah5supportup}
 {Eclipse Arrowhead}, ``{ah5-blacklist-java-spring,
   ah5-translation-manager-java-spring, ah5-device-qos-evaluator-java-spring,
