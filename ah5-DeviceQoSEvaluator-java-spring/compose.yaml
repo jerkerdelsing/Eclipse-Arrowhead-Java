@@ -16,6 +16,10 @@ services:
       device-qos-evaluator-db:
         condition: service_healthy
     environment:
+      # Bounded JVM inside the 1 GiB container limit: heap, metaspace, direct buffers and thread stacks (60 Quartz
+      # threads) are capped, the JVM exits on OutOfMemoryError instead of being OOM-killed by the kernel, and native
+      # memory tracking allows `jcmd 1 VM.native_memory summary` when memory grows (OOM kill after 2.5 days, 2026-11-17).
+      JAVA_TOOL_OPTIONS: ${DEVICE_QOS_EVALUATOR_JAVA_OPTIONS:--Xms64m -Xmx256m -XX:MaxMetaspaceSize=192m -XX:MaxDirectMemorySize=128m -Xss512k -XX:NativeMemoryTracking=summary -XX:+ExitOnOutOfMemoryError}
       LOCAL_CLOUD: ${LOCAL_CLOUD:-TestCloud}
       ORGANIZATION: ${ORGANIZATION:-Company}
       SERVICE_REGISTRY_ADDRESS: ${SERVICE_REGISTRY_ADDRESS:-serviceregistry}

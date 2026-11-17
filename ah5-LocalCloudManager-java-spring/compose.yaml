@@ -69,10 +69,12 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    mem_limit: 192m
+    mem_limit: 256m
     pids_limit: 64
     tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777"]
     environment:
+      # capped heap and thread stacks; the proxy ran at 93 % of its former 192 MiB limit (2026-11-17)
+      JAVA_TOOL_OPTIONS: ${DOCKER_PROXY_JAVA_OPTIONS:--Xms32m -Xmx96m -XX:MaxMetaspaceSize=80m -Xss512k -XX:+ExitOnOutOfMemoryError}
       COMPOSE_PROJECT_NAME: ${MANAGED_PROJECT:-arrowhead-v52-test-cloud}
       MANAGED_SERVICES: ${MANAGED_SERVICES:-sysmonitor,datamanager,timemanager,eventhandler}
     volumes:

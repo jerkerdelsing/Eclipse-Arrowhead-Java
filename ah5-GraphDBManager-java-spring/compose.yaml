@@ -62,7 +62,8 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    mem_limit: 1536m
+    # GraphDB needs off-heap memory beyond GDB_HEAP_SIZE; 1.5 GiB for a 768 MB heap was OOM-killed (2026-11-15)
+    mem_limit: 2g
     pids_limit: 512
     tmpfs: ["/tmp:rw,nosuid,nodev,size=128m,mode=1777"]
     environment:
