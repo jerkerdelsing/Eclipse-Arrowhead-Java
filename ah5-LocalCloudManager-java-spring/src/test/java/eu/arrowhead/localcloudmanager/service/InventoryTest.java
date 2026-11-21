@@ -35,6 +35,17 @@ public class InventoryTest {
 	}
 
 	@Test
+	public void unregisteredServicesCountsOnlyArrowheadSystemContainers() throws Exception {
+		final List<JsonNode> containers = l("[{'service':'graphdbmanager','state':'running','managed':true},"
+				+ "{'service':'graphdbmanager-graphdb','state':'running','managed':true},"
+				+ "{'service':'mqtt-broker','state':'running','managed':true},"
+				+ "{'service':'timemanager','state':'running','managed':true},"
+				+ "{'service':'eventhandler','state':'exited','managed':true},"
+				+ "{'service':'datamanager','state':'running','managed':false}]");
+		assertEquals(List.of("timemanager"), Inventory.unregisteredServices(containers, Set.of("graphdbmanager")));
+	}
+
+	@Test
 	public void systemStatusAssociatesAnArrowheadSystemWithItsComposeService() throws Exception {
 		final ObjectNode result = Inventory.systemStatus(j("{'name':'ServiceRegistry','version':'5.2.2'}"),
 				l("[{'service':'serviceregistry','state':'running','status':'Up','health':'healthy','managed':true}]"), Map.of("ServiceRegistry", 5));

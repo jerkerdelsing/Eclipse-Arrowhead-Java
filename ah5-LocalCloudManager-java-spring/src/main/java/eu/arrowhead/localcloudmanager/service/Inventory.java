@@ -63,6 +63,21 @@ public final class Inventory {
 		throw new UnsupportedOperationException();
 	}
 
+	// Running managed containers that should be Arrowhead systems but have no registered system. Only containers of known
+	// Arrowhead systems count: backing stores and brokers (e.g. graphdbmanager-graphdb) may be managed for restarts but never register.
+	public static List<String> unregisteredServices(final List<JsonNode> containers, final Set<String> registeredComposeServices) {
+		final Set<String> systemServices = Set.copyOf(SYSTEM_TO_SERVICE.values());
+		final List<String> out = new ArrayList<>();
+		for (final JsonNode c : containers) {
+			final String service = c.path("service").asText();
+			if (c.path("managed").asBoolean() && "running".equals(c.path("state").asText(null)) && !INFRASTRUCTURE.contains(service)
+					&& systemServices.contains(service) && !registeredComposeServices.contains(service)) {
+				out.add(service);
+			}
+		}
+		return out;
+	}
+
 	public static List<String> validateInventoryNames(final List<JsonNode> systems, final List<JsonNode> services) {
 		final Set<String> violations = new TreeSet<>();
 		for (final JsonNode system : systems) {

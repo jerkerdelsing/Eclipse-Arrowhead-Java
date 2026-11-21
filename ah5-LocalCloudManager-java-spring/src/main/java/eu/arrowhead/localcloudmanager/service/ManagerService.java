@@ -255,11 +255,7 @@ public class ManagerService {
 		final ObjectNode revocation = CrlStatus.status(crlFile, System.currentTimeMillis());
 		final long unhealthy = containers.stream().filter(c -> "unhealthy".equals(c.path("health").asText(null))).count();
 		final Set<String> registered = systems.stream().map(s -> Json.str(s, "composeService")).filter(Json::truthy).collect(Collectors.toSet());
-		final Set<String> infrastructure = Set.of("mqtt-broker", "amqp-broker", "chiplet-gateway", "chiplet-adapters");
-		final List<String> unregistered = containers.stream()
-				.filter(c -> c.path("managed").asBoolean() && !infrastructure.contains(c.path("service").asText()) && "running".equals(c.path("state").asText(null))
-						&& !registered.contains(c.path("service").asText()))
-				.map(c -> c.path("service").asText()).toList();
+		final List<String> unregistered = Inventory.unregisteredServices(containers, registered);
 
 		final ObjectNode sample = Json.obj();
 		sample.put("at", collectedAt);
