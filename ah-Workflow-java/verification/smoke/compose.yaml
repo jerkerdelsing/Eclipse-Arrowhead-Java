@@ -1,0 +1,65 @@
+# Isolated smoke test (development profile, no ServiceRegistry). Started by run-smoke.sh; not a deployment.
+name: wf-smoke
+x-java: &java
+  image: eclipse-temurin:21-jre
+  working_dir: /app
+  networks: [smoke]
+  mem_limit: 512m
+services:
+  db:
+    image: mysql:8.4.13
+    networks: [smoke]
+    mem_limit: 768m
+    environment:
+      MYSQL_ROOT_PASSWORD: smoke-root
+    volumes:
+      - ../../workflow-manager/src/main/resources/database/create_empty_db.sql:/docker-entrypoint-initdb.d/01.sql:ro
+      - ../../workflow-manager/src/main/resources/database/create_tables.sql:/docker-entrypoint-initdb.d/02.sql:ro
+      - ../../workflow-manager/src/main/resources/database/grant_privileges.sql:/docker-entrypoint-initdb.d/03.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-psmoke-root"]
+      interval: 3s
+      retries: 40
+  equipment:
+    image: python:3.13-alpine
+    networks: [smoke]
+    volumes: ["./equipment.py:/eq/equipment.py:ro"]
+    command: ["python", "-I", "/eq/equipment.py"]
+    ports: ["127.0.0.1:19000:9000"]
+  wfm:
+    <<: *java
+    depends_on: { db: { condition: service_healthy } }
+    volumes: ["../../workflow-manager/target/arrowhead-workflowmanager-5.4.0.jar:/app/app.jar:ro"]
+    ports: ["127.0.0.1:18482:8482"]
+    command: ["java", "-Xmx256m", "-jar", "/app/app.jar",
+      "--arrowhead.security.profile=development", "--sysmonitor.enabled=false", "--workflow.standalone=true",
+      "--domain.name=wfm", "--management.policy=sysop-only",
+      "--spring.datasource.url=jdbc:mariadb://db:3306/ah_workflow?allowPublicKeyRetrieval=true&sslMode=disable",
+      "--workflow.executors=WfeAgv|http://wfe-agv:8483|agv|*;WfeA|http://wfe-a:8483||*",
+      "--workflow.pull.claim-timeout=30"]
+  wfe-agv:
+    <<: *java
+    volumes: ["../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro"]
+    command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.application.name=WfeAgv",
+      "--arrowhead.security.profile=development", "--sysmonitor.enabled=false", "--workflow.standalone=true", "--domain.name=wfe-agv",
+      "--spring.datasource.url=jdbc:h2:mem:wfe;MODE=MariaDB;DATABASE_TO_LOWER=TRUE",
+      "--workflow.executor.capabilities=agv", "--workflow.manager.url=http://wfm:8482",
+      "--workflow.executor.static-providers=${STATIC_PROVIDERS}"]
+  wfe-a:
+    <<: *java
+    volumes: ["../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro"]
+    command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.application.name=WfeA",
+      "--arrowhead.security.profile=development", "--sysmonitor.enabled=false", "--workflow.standalone=true", "--domain.name=wfe-a",
+      "--spring.datasource.url=jdbc:h2:mem:wfe;MODE=MariaDB;DATABASE_TO_LOWER=TRUE",
+      "--workflow.manager.url=http://wfm:8482",
+      "--workflow.executor.static-providers=${STATIC_PROVIDERS}"]
+  wfe-pull:
+    <<: *java
+    volumes: ["../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro"]
+    command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.application.name=WfePull",
+      "--arrowhead.security.profile=development", "--sysmonitor.enabled=false", "--workflow.standalone=true", "--domain.name=wfe-pull",
+      "--spring.datasource.url=jdbc:h2:mem:wfe;MODE=MariaDB;DATABASE_TO_LOWER=TRUE",
+      "--workflow.executor.mode=pull", "--workflow.executor.poll-ms=200", "--workflow.manager.url=http://wfm:8482",
+      "--workflow.executor.static-providers=${STATIC_PROVIDERS}"]
+networks:
+  smoke: {}

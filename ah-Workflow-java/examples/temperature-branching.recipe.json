@@ -1,0 +1,25 @@
+{
+  "name": "temperature-branching",
+  "version": "1.0.0",
+  "description": "Guarded transitions (extension x-guard): after evaluate, exactly one of heatOn and heatOff runs; confirm joins the branches and runs after the taken one. The other branch is skipped (x-skip).",
+  "firstAction": "control",
+  "parameters": [
+    { "name": "threshold", "type": "number" }
+  ],
+  "actions": [
+    {
+      "name": "control",
+      "next": null,
+      "steps": [
+        { "name": "read", "service": { "serviceDefinition": "temperature-read" }, "next": ["evaluate"] },
+        { "name": "evaluate", "service": { "serviceDefinition": "temperature-evaluate" }, "next": ["heatOn", "heatOff"], "dep": ["read"],
+          "input": { "temperature": "${result.read.temperature}", "threshold": "${param.threshold}" },
+          "guards": { "heatOn": "${result.evaluate.heat} == true", "heatOff": "!${result.evaluate.heat}" } },
+        { "name": "heatOn", "service": { "serviceDefinition": "heating-switch" }, "next": ["confirm"], "input": { "on": true } },
+        { "name": "heatOff", "service": { "serviceDefinition": "heating-switch" }, "next": ["confirm"], "input": { "on": false } },
+        { "name": "confirm", "service": { "serviceDefinition": "temperature-read" }, "dep": ["heatOn", "heatOff"],
+          "input": { "on": "${result.heatOn.on}", "off": "${result.heatOff.on}" } }
+      ]
+    }
+  ]
+}

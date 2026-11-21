@@ -48,6 +48,9 @@ DEFAULTS = {
     "ah5-LocalCloudConfigurator-java": 8492,
     "ah5-SoSConfigurator-java": 8494,
     "ah5-SoLocalCloudConfigurator-java": 8496,
+    "ah-Workflow-java/workflow-manager": 8482,
+    "ah-Workflow-java/workflow-executor": 8483,
+    "ah-Workflow-java/workflow-configurator": 8484,
 }
 
 PORT = re.compile(r"^\s*server\.port\s*[=:]\s*(\S+)\s*$", re.M)
