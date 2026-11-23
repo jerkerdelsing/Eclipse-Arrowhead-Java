@@ -1,0 +1,743 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+%% Special references
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\oref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:operations:#1]{#1}}}}
+\newcommand{\pdef}[1]{{\textcolor{ArrowheadGrey}{#1\label{sec:model:primitives:#1}\label{sec:model:primitives:#1s}\label{sec:model:primitives:#1es}}}}
+\newcommand{\pref}[1]{{\textcolor{ArrowheadGrey}{\hyperref[sec:model:primitives:#1]{#1}}}}
+
+\newrobustcmd\osubsection[3]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}operation \textcolor{ArrowheadBlue}{#1}}
+  \subsection*{
+    \thesubsection\quad
+    operation
+    \textcolor{ArrowheadBlue}{#1}
+    (\notblank{#2}{\mref{#2}}{})
+    \notblank{#3}{: \mref{#3}}{}
+  }
+  \label{sec:operations:#1}
+}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2} \label{sec:model:#2s} \label{sec:model:#2es}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{workflowRecipe}
+\ArrowheadServiceID{workflowRecipe}
+\ArrowheadType{Service Description}
+\ArrowheadTypeShort{SD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-23}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  \Large{Service ID: \textit{``\arrowid''}}
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the \texttt{workflowRecipe} service of the Eclipse Arrowhead workflow support systems, which validates, registers, lists, retires and compiles workflow recipes. It is provided by the WorkflowManager system, service version 1.0.0, documentation edition 5.4.0.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+The \texttt{workflowRecipe} service is the recipe catalogue of a WorkflowManager. A recipe is the
+design-time description of a workflow: which Arrowhead services are consumed (service definitions and capabilities,
+never endpoints), in which order and under which conditions, and how data flows between the exchanges. The service
+validates recipes against the well-formedness conditions of the formal recipe model~\cite{varga2026} and the
+WorkflowManager's own checks, stores accepted recipes immutably by name and version, and compiles them to plans of the
+existing Choreographer.
+
+The rest of this document is organized as follows.
+In Section~\ref{sec:operations}, we describe the abstract message operations provided by the service.
+In Section~\ref{sec:model}, we end the document by presenting the data types used by the mentioned operations.
+
+\subsection{Significant Prior Art}
+The recipe model is the formal definition $W = (P, A, S, \theta, \iota, \mu, q, pre, \eta, qnty, dep, \kappa)$
+of Varga~\cite{varga2026}, with its well-formedness conditions (W1)--(W4). Separating the workflow description from the
+consumers that execute it follows Derhamy's design principles of loose coupling and specialisation~\cite{derhamy2018}
+and the workflow management system of Garcia Represa~\cite{represa2022}. The plan compiled by \oref{compile} is the
+plan model of the Arrowhead Choreographer (4.6.2 to 5.4.0).
+
+\subsection{How This Service Is Meant to Be Used}
+An engineering tool, normally the WorkflowConfigurator, calls \oref{validate} while a workflow is being
+designed and \oref{register} when it is accepted. A product, line controller or upper WorkflowManager then starts
+sessions of the registered recipe through \texttt{workflowInstance}. Old versions are retired with \oref{retire}: they
+remain readable for traceability but cannot be started. A recipe that should run on an existing Choreographer is
+compiled with \oref{compile} and submitted to the Choreographer's plan management.
+
+\subsection{Important Delimitations and Dependencies}
+\label{sec:delimitations}
+\begin{itemize}
+\item Recipes are immutable: registering different content under an existing name and version is refused (409). A change needs a new version.
+\item The validator decides on the structure, the data flow, the lease discipline and, in a connected deployment, on the availability of services and executors in the running cloud (checks C01, C02). It does not check the semantic correctness of the equipment operations.
+\item \texttt{quantity} $>$ 1 is not accepted (M01); repeated execution is outside the proven model.
+\item Compilation to a Choreographer plan is lossy: inputs ($\kappa_s$), guards, dependencies and policies cannot be expressed in a plan and are listed in \texttt{lossySteps}.
+\item Retiring is the only life-cycle change; recipes are never deleted through this service.
+\end{itemize}
+
+\paragraph{Authorization.} Each operation is authorized separately (\texttt{workflowRecipe.validate}, \ldots). The WorkflowConfigurator needs \texttt{validate}, \texttt{register}, \texttt{query} and \texttt{get}.
+
+\newpage
+\section{Service Interface}
+\label{sec:operations}
+This section describes the interface of the \texttt{workflowRecipe} service. Each subsection names an abstract operation,
+an input type and an output type, in that order. The input type is named inside parentheses, while the output type is
+preceded by a colon. Input and output types are only denoted when accepted or returned, respectively, by the operation
+in question. All abstract data types named in this section are defined in Section~\ref{sec:model}. The concrete
+interface (HTTP/TLS/JSON) is specified in the IDD of the same name.
+
+\begin{figure}[ht!]
+  \centering
+  \resizebox{0.92\textwidth}{!}{
+\begin{tikzpicture}
+\node[ahsys] (prov) at (4.6,0) {WorkflowManager\\[-1pt]{\normalfont\scriptsize $\ll$provider$\gg$}};
+\node[ahsrv] (srv) at (1.6,0) {workflowRecipe};
+\draw[thick,ArrowheadPurple] (srv.east) -- (prov.west);
+\node[ahext] (c0) at (-3.0,1.20) {WorkflowConfigurator\\[-1pt]{\scriptsize $\ll$consumer$\gg$}};
+\draw[ahflow] (c0.east) -- (srv.west);
+\node[ahext] (c1) at (-3.0,0.00) {Engineering tool\\[-1pt]{\scriptsize $\ll$consumer$\gg$}};
+\draw[ahflow] (c1.east) -- (srv.west);
+\node[ahext] (c2) at (-3.0,-1.20) {Upper WorkflowManager\\[-1pt]{\scriptsize $\ll$consumer$\gg$}};
+\draw[ahflow] (c2.east) -- (srv.west);
+\end{tikzpicture}
+  }
+  \caption{SysML block view of the \texttt{workflowRecipe} service: provider and typical consumers.}
+  \label{fig:SD}
+\end{figure}
+
+The following interface operations are available.
+
+{\small
+\begin{longtable}{|p{4.4cm}|p{5.6cm}|p{5.8cm}|}
+
+\hline
+\rowcolor{gray!33} Operation & Input & Output \\ \hline
+\endhead
+\oref{validate} & \mref{Recipe} & \mref{ValidationReport} \\ \hline
+\oref{register} & \mref{Recipe} & \mref{RecipeRegistration} \\ \hline
+\oref{query} & \mref{RecipeFilter} & \mref{RecipeList} \\ \hline
+\oref{get} & \mref{RecipeKey} & \mref{RecipeRecord} \\ \hline
+\oref{retire} & \mref{RecipeKey} & \mref{RecipeRecord} \\ \hline
+\oref{compile} & \mref{RecipeKey} & \mref{ChoreographerPlan} \\ \hline
+\end{longtable}
+}
+
+\osubsection{validate}{Recipe}{ValidationReport}
+Validates a recipe without storing it. Every finding is reported; the verdict is the worst outcome.
+\osubsection{register}{Recipe}{RecipeRegistration}
+Validates the recipe and stores it when the verdict is ACCEPT. The registering system is recorded as \texttt{registeredBy}.
+\osubsection{query}{RecipeFilter}{RecipeList}
+Lists registered recipes in registration order, optionally only the versions of one recipe.
+\osubsection{get}{RecipeKey}{RecipeRecord}
+Returns one registered recipe version, active or retired.
+\osubsection{retire}{RecipeKey}{RecipeRecord}
+Marks a recipe version \texttt{RETIRED}. Running sessions continue; new sessions are refused.
+\osubsection{compile}{RecipeKey}{ChoreographerPlan}
+Compiles an active recipe version (the latest when \texttt{version} is absent) to a Choreographer plan request.
+
+\subsection{Guard expressions}
+\label{sec:guards}
+A step may put a condition on the transition to each successor (\texttt{guards}, extension x-guard). The language is
+deliberately small and side-effect free, so a WorkflowManager can evaluate it from $\rho$ and $\xi$ alone and all
+implementations can share the grammar:
+\begin{lstlisting}
+expr      := or
+or        := and ( "||" and )*
+and       := unary ( "&&" unary )*
+unary     := "!" unary | compare
+compare   := operand ( ( "==" | "!=" | "<" | "<=" | ">" | ">=" ) operand )?
+operand   := "(" expr ")" | reference | number | string | "true" | "false" | "null"
+reference := "${param." name path "}" | "${result." step path "}"   path := ( "." segment )*
+string    := '...' | "..."   (a backslash escapes the next character)
+\end{lstlisting}
+A lone operand is true when it is Boolean true, a non-zero number, or a non-empty string, array or object. A missing
+reference is null. Numbers compare numerically, strings lexicographically, and \texttt{==}/\texttt{!=} compare JSON
+values. Ordering a number with a non-number is false.
+
+A step is enabled when every predecessor is resolved (completed or skipped) and at least one transition into it was
+taken; it is skipped (x-skip) when none was taken. Without guards this is exactly the rule S-Enable of the model.
+
+
+\subsection{Validator checks}
+\label{sec:codes}
+The validator applies the checks below and reports each violation as a \mref{Finding}. The S, D and M checks realise the
+well-formedness conditions (W1)--(W4) of~\cite{varga2026}; the L checks the premise of Proposition~1 in its lease
+variant; the G checks the guarded-transition extension; C01 and C02 run only in a WorkflowManager connected to a
+ServiceRegistry. The decision rule is REJECT $>$ CLARIFY $>$ REVISE $>$ ACCEPT, and only ACCEPT can be registered.
+
+{\small
+\begin{longtable}{|p{1.3cm}|p{1.9cm}|p{12.8cm}|}
+
+\hline
+\rowcolor{gray!33} Code & Outcome & Meaning \\ \hline
+\endhead
+\texttt{S00} & REVISE & Name or version not valid. \\ \hline
+\texttt{S01} & REVISE & Two actions have the same name. \\ \hline
+\texttt{S02} & REVISE & Two steps have the same name. \\ \hline
+\texttt{S03} & REVISE & The first action does not exist. \\ \hline
+\texttt{S04} & REVISE & The next action does not exist. \\ \hline
+\texttt{S05} & REVISE & An action cannot be reached, or actions form a loop. \\ \hline
+\texttt{S06} & REVISE & Transition to a step in another action. \\ \hline
+\texttt{S07} & REVISE & The steps form a loop. \\ \hline
+\texttt{S08} & REVISE & The workflow or an action is empty. \\ \hline
+\texttt{S09} & REVISE & A step has no service. \\ \hline
+\texttt{P01} & REVISE & Two session parameters have the same name. \\ \hline
+\texttt{D01} & REVISE & Dependency on an unknown step. \\ \hline
+\texttt{D02} & REVISE & A dependency does not run first. \\ \hline
+\texttt{D03} & REVISE & The input reads a result the step cannot see (outside $dep(s)$). \\ \hline
+\texttt{D04} & REVISE & The input needs a service result no dependency provides (\texttt{requiresResults}). \\ \hline
+\texttt{D05} & CLARIFY & The input reads an undeclared session parameter. \\ \hline
+\texttt{G01} & REVISE & Condition on a transition that does not exist. \\ \hline
+\texttt{G02} & REVISE & A condition cannot be parsed. \\ \hline
+\texttt{G03} & REVISE & A condition reads a result that may not exist yet. \\ \hline
+\texttt{G04} & ACCEPT & Information: the workflow uses conditions (x-guard). \\ \hline
+\texttt{G05} & CLARIFY & A condition reads an undeclared session parameter. \\ \hline
+\texttt{L01} & REVISE & Lease of an undeclared resource. \\ \hline
+\texttt{L02} & REVISE & No reserve step before the tool use. \\ \hline
+\texttt{L03} & REVISE & A tool use does not depend on its reserve step. \\ \hline
+\texttt{L04} & CLARIFY & Lease duration missing or shorter than a tool step. \\ \hline
+\texttt{L05} & REVISE & No release step after the tool use. \\ \hline
+\texttt{M01} & REVISE & Quantity above 1. \\ \hline
+\texttt{M02} & REVISE & Executor choice without a capability. \\ \hline
+\texttt{C01} & CLARIFY & The service is not found in the running cloud (WorkflowManager catalogue check). \\ \hline
+\texttt{C02} & CLARIFY & No executor can run the step (WorkflowManager catalogue check). \\ \hline
+\end{longtable}
+}
+
+
+\newpage
+\section{Information Model}
+\label{sec:model}
+Here, all data objects that can be part of the \texttt{workflowRecipe} service are listed in alphabetic order. Each
+subsection, which describes one type of object, begins with the \textit{struct} keyword (a collection of named fields,
+each with its own data type), the \textit{enum} keyword (a closed set of values) or the \textit{alias} keyword. As a
+complement to the explicitly defined types in this section, there is also a list of implicit primitive types in
+Section~\ref{sec:model:primitives}.
+
+\msubsection{struct}{Action}
+An action $\alpha$: a group of steps run in one work centre.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Action name. \\ \hline
+\texttt{next} & \pref{Name} & The action that becomes active when this one finishes; absent for the last action. Optional. \\ \hline
+\texttt{workCentre} & \pref{String} & Informative work-centre identifier. Optional. \\ \hline
+\texttt{dispatch} & \mref{DispatchMode} & Dispatch mode of this action's steps. Optional. \\ \hline
+\texttt{steps} & \pref{List}$<$\mref{Step}$>$ & The steps $S_\alpha$. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ChoreographerPlan}
+A recipe compiled to the Choreographer plan request (\texttt{PlanRequestDTO}), for option A of the coexistence with the Choreographer.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Plan name: the recipe name. \\ \hline
+\texttt{firstActionName} & \pref{Name} & First action. \\ \hline
+\texttt{actions} & \pref{List}$<$\mref{PlanAction}$>$ & Actions. \\ \hline
+\texttt{lossySteps} & \pref{List}$<$\pref{String}$>$ & Informational: steps whose input, guards, dependencies or policy the plan cannot express. Not part of the Choreographer request. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{DispatchMode}
+How a step reaches an executor.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflowExecution.start} (default). \\ \hline
+\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflowWorkItem.claim}. \\ \hline
+\texttt{event} & Reserved for EventHandler notification; currently handled as \texttt{pull}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ExecutorRequirement}
+$\eta(s)$: constraints on the executor that runs a step.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{capability} & \pref{String} & A capability the executor must declare in \texttt{workflowCapabilities}. Optional. \\ \hline
+\texttt{workstation} & \pref{String} & The executor's workstation. Optional. \\ \hline
+\texttt{system} & \pref{SystemName} & A named executor system. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Finding}
+One validator finding.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{code} & \pref{String} & Check code, e.g. \texttt{D03}; the codes are listed in the \texttt{workflowRecipe} SD. \\ \hline
+\texttt{outcome} & \mref{Verdict} & Outcome of this finding. \\ \hline
+\texttt{basis} & \pref{String} & The rule the check enforces, e.g. \texttt{W1}, \texttt{V9}, \texttt{schema}. \\ \hline
+\texttt{location} & \pref{String} & Where the finding applies, e.g. \texttt{step evaluate}. \\ \hline
+\texttt{message} & \pref{String} & Human-readable explanation. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{LeaseMode}
+Role of a step for a shared resource.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{reserve} & Reserves the resource; its result carries the lease token. \\ \hline
+\texttt{use} & Uses the resource; the executor renews the lease immediately before the invocation. \\ \hline
+\texttt{release} & Releases the resource. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{LeasePolicy}
+The role of a step for a shared resource.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{resource} & \pref{Name} & A declared resource. \\ \hline
+\texttt{mode} & \mref{LeaseMode} & \texttt{reserve}, \texttt{use} or \texttt{release}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{OnError}
+Reaction to an \texttt{ERROR} report.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{rebind} & Exclude the executor for this session and bind the step again. \\ \hline
+\texttt{abort} & Fail the session. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Parameter}
+A declared session parameter.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Parameter name, referenced as \texttt{\$\{param.name\}}. \\ \hline
+\texttt{type} & \pref{String} & Informative type: \texttt{string}, \texttt{number}, \texttt{boolean} or \texttt{object}. Optional. \\ \hline
+\texttt{required} & \pref{Boolean} & Whether \texttt{workflowInstance.start} refuses a session without it. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{PlanAction}
+\texttt{ActionRequestDTO} of the Choreographer.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Action name. \\ \hline
+\texttt{nextActionName} & \pref{Name} & Next action. Optional. \\ \hline
+\texttt{firstStepNames} & \pref{List}$<$\pref{Name}$>$ & Steps without predecessors. \\ \hline
+\texttt{steps} & \pref{List}$<$\mref{PlanStep}$>$ & Steps. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{PlanServiceRequirement}
+Subset of the orchestration service requirement.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{serviceDefinition} & \pref{ServiceDefinition} & Service. \\ \hline
+\texttt{versions} & \pref{List}$<$\pref{String}$>$ & Accepted versions. Optional. \\ \hline
+\texttt{interfaceTemplateNames} & \pref{List}$<$\pref{String}$>$ & Accepted interface templates. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{PlanStep}
+\texttt{StepRequestDTO} of the Choreographer.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Step name. \\ \hline
+\texttt{quantity} & \pref{Integer} & Always 1. Optional. \\ \hline
+\texttt{serviceRequirement} & \mref{PlanServiceRequirement} & Service of the step. \\ \hline
+\texttt{localCloudOnly} & \pref{Boolean} & From the step policy. Optional. \\ \hline
+\texttt{staticParameters} & \pref{Map}$<$\pref{String}, \pref{String}$>$ & The step's \texttt{params} as strings. Optional. \\ \hline
+\texttt{nextStepNames} & \pref{List}$<$\pref{Name}$>$ & Successors. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Policy}
+Execution policy of a step. Every field other than \texttt{lease} and \texttt{localCloudOnly} is an extension outside the proven model.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{quantity} & \pref{Integer} & Number of executions; only 1 is accepted (check M01). Optional. \\ \hline
+\texttt{timeoutSeconds} & \pref{Duration} & Extension x-timeout: the step fails when it runs longer. Optional. \\ \hline
+\texttt{nominalDurationSeconds} & \pref{Duration} & Expected duration, used to check lease durations (check L04). Optional. \\ \hline
+\texttt{retry} & \mref{Retry} & Extension x-rebind: behaviour on \texttt{ERROR}. Optional. \\ \hline
+\texttt{lease} & \mref{LeasePolicy} & The step's role for a shared resource. Optional. \\ \hline
+\texttt{localCloudOnly} & \pref{Boolean} & Whether orchestration may return providers of other clouds (default true). Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Recipe}
+A workflow recipe $W$~\cite{varga2026}: named, versioned and immutable once registered. Actions run in sequence (\texttt{firstAction}, then each action's \texttt{next}); the steps of one action form a directed acyclic graph.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Recipe name. \\ \hline
+\texttt{version} & \pref{Version} & Recipe version; a registered name and version never changes content. \\ \hline
+\texttt{description} & \pref{String} & Free text. Optional. \\ \hline
+\texttt{firstAction} & \pref{Name} & The action $\alpha_0$ that is active when a session starts. \\ \hline
+\texttt{parameters} & \pref{List}$<$\mref{Parameter}$>$ & Declared session parameters $\rho$. Optional. \\ \hline
+\texttt{resources} & \pref{List}$<$\mref{Resource}$>$ & Shared resources (tools) used under leases. Optional. \\ \hline
+\texttt{dispatch} & \mref{DispatchMode} & Default dispatch mode of the recipe; overridden per action or per session. Optional. \\ \hline
+\texttt{actions} & \pref{List}$<$\mref{Action}$>$ & The actions $A$ with their steps. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{RecipeFilter}
+Optional filter of the recipe query.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Only versions of this recipe. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{RecipeKey}
+Identifies one registered recipe version.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Recipe name. \\ \hline
+\texttt{version} & \pref{Version} & Recipe version; for \texttt{compile} the latest active version when absent. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{RecipeList}
+Registered recipes in registration order.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{entries} & \pref{List}$<$\mref{RecipeRecord}$>$ & The recipes. \\ \hline
+\texttt{count} & \pref{Integer} & Number of entries. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{RecipeRecord}
+A registered recipe as stored by the WorkflowManager.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{id} & \pref{Integer} & Database identifier. \\ \hline
+\texttt{name} & \pref{Name} & Recipe name. \\ \hline
+\texttt{version} & \pref{Version} & Recipe version. \\ \hline
+\texttt{status} & \mref{RecipeStatus} & \texttt{ACTIVE} or \texttt{RETIRED}. \\ \hline
+\texttt{registeredBy} & \pref{SystemName} & The system that registered the recipe. \\ \hline
+\texttt{recipe} & \mref{Recipe} & The canonical recipe document. \\ \hline
+\texttt{createdAt} & \pref{DateTime} & Registration time. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{RecipeRegistration}
+Result of a registration.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{recipe} & \mref{RecipeRecord} & The stored recipe; null when the recipe was not accepted. Optional. \\ \hline
+\texttt{validation} & \mref{ValidationReport} & The validation report. \\ \hline
+\texttt{created} & \pref{Boolean} & True when a new version was stored; false when identical content already existed. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{RecipeStatus}
+Life-cycle state of a registered recipe.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{ACTIVE} & Sessions may be started. \\ \hline
+\texttt{RETIRED} & Kept for traceability; new sessions are refused with 409. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Resource}
+A shared resource that steps reserve, use and release under a lease (Proposition~1 of~\cite{varga2026}, lease variant).
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Resource name. \\ \hline
+\texttt{leaseDurationSeconds} & \pref{Duration} & Lease duration granted by \texttt{workflowLease}; must exceed the longest tool-using step. Optional. \\ \hline
+\texttt{provider} & \pref{SystemName} & Lease provider; the WorkflowManager when absent. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Retry}
+Extension x-rebind.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{maxAttempts} & \pref{Integer} & Maximum attempts of the step in one session. Optional. \\ \hline
+\texttt{onError} & \mref{OnError} & What an \texttt{ERROR} report causes. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ServiceRequirement}
+Requirements on the provider of the step's service, passed to orchestration.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{serviceDefinition} & \pref{ServiceDefinition} & The service to consume. \\ \hline
+\texttt{interfaces} & \pref{List}$<$\pref{String}$>$ & Accepted interface template names, e.g. \texttt{generic\_https}. Optional. \\ \hline
+\texttt{minVersion} & \pref{String} & Lowest accepted service version. Optional. \\ \hline
+\texttt{maxVersion} & \pref{String} & Highest accepted service version. Optional. \\ \hline
+\texttt{metadata} & \pref{Map}$<$\pref{String}, \pref{JsonValue}$>$ & Metadata requirements on the service instance. Optional. \\ \hline
+\texttt{qos} & \pref{Map}$<$\pref{String}, \pref{JsonValue}$>$ & QoS requirements forwarded to orchestration. Optional. \\ \hline
+\texttt{requiresResults} & \pref{List}$<$\pref{Name}$>$ & Steps whose results the provider needs; each must be in $dep(s)$ (check D04). Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Step}
+A step $s$: one service exchange.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{Name} & Step name, unique in the recipe. \\ \hline
+\texttt{service} & \mref{ServiceRequirement} & $\theta(s)$: the service the step consumes. \\ \hline
+\texttt{next} & \pref{List}$<$\pref{Name}$>$ & Successors in the same action (the transitions $s \rightarrow s'$). Optional. \\ \hline
+\texttt{dep} & \pref{List}$<$\pref{Name}$>$ & $dep(s)$: steps whose results the step reads. Each must run before $s$. Optional. \\ \hline
+\texttt{executor} & \mref{ExecutorRequirement} & $\eta(s)$: which executor may run the step; absent means any executor declaring the service. Optional. \\ \hline
+\texttt{params} & \pref{Map}$<$\pref{String}, \pref{JsonValue}$>$ & Static parameters passed unchanged to the provider. Optional. \\ \hline
+\texttt{input} & \pref{Template} & $\kappa_s$: the request body sent to the provider, composed from $\rho$ and $\xi|dep(s)$. Optional. \\ \hline
+\texttt{policy} & \mref{Policy} & Execution policy (quantity, timeout, retry, lease, local cloud). Optional. \\ \hline
+\texttt{guards} & \pref{Map}$<$\pref{Name}, \pref{Expression}$>$ & Conditions on the transitions to successors (extension x-guard). A successor without a guard is always taken. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ValidationReport}
+The result of validating a recipe. The verdict is the worst outcome of the findings (REJECT $>$ CLARIFY $>$ REVISE $>$ ACCEPT).
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{recipe} & \pref{String} & \texttt{name@version} of the validated recipe. \\ \hline
+\texttt{verdict} & \mref{Verdict} & Overall verdict; only \texttt{ACCEPT} can be registered. \\ \hline
+\texttt{findings} & \pref{List}$<$\mref{Finding}$>$ & Individual findings; empty when the recipe has none. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{Verdict}
+Validator outcome.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{ACCEPT} & The recipe can be registered (also used for informational findings). \\ \hline
+\texttt{REVISE} & The recipe must be changed. \\ \hline
+\texttt{CLARIFY} & The recipe refers to something that cannot be confirmed (undeclared parameter, unknown service or executor). \\ \hline
+\texttt{REJECT} & The recipe cannot be used at all. \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Primitives}
+\label{sec:model:primitives}
+Types and structures mentioned throughout this document that are assumed to be available to implementations of this
+service. The concrete interpretation of each of these types must be provided by any IDD document claiming to implement
+this service.
+
+{\small
+\begin{longtable}{|p{3.2cm}|p{12.6cm}|}
+
+\hline
+\rowcolor{gray!33} Type & Description \\ \hline
+\endhead
+\pdef{Boolean} & One out of \texttt{true} or \texttt{false}. \\ \hline
+\pdef{DateTime} & Pinpoints a moment in time (UTC). \\ \hline
+\pdef{Duration} & A length of time in seconds. \\ \hline
+\pdef{Expression} & A side-effect free condition over the session parameters and stored results (Section on guard expressions). \\ \hline
+\pdef{Integer} & A whole number. \\ \hline
+\pdef{JsonValue} & Any value: object, array, string, number, Boolean or null. \\ \hline
+\pdef{List} & An ordered collection of items of the type given in angle brackets. \\ \hline
+\pdef{Map} & A collection of key/value pairs of the types given in angle brackets. \\ \hline
+\pdef{Name} & An identifier of a recipe, action, step, parameter or resource: a letter followed by at most 62 letters, digits, \texttt{-} or \texttt{\_}. \\ \hline
+\pdef{ServiceDefinition} & The name of an Arrowhead service definition. Names are compared case-insensitively and without \texttt{-}, \texttt{\_} and spaces, so \texttt{temperature-read} and \texttt{temperatureRead} denote the same service. \\ \hline
+\pdef{String} & A chain of characters. \\ \hline
+\pdef{SystemName} & The name of an Arrowhead system as it appears in its certificate and in the ServiceRegistry. \\ \hline
+\pdef{Template} & A value in which strings of the form \texttt{\$\{param.$p$\}} or \texttt{\$\{result.$s$.path\}} are replaced by a session parameter or by (a part of) a stored step result. \\ \hline
+\pdef{Version} & A recipe version in the form MAJOR.MINOR.PATCH. \\ \hline
+\end{longtable}
+}
+
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-23 & \arrowversion & Initial edition: service description of workflowRecipe, written from the Java reference implementation (ah-Workflow-java). & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}

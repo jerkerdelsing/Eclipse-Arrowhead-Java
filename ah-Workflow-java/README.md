@@ -8,6 +8,8 @@ Three Eclipse Arrowhead 5.4.0 support systems that coexist with the Choreographe
 
 The design and its sources are in [ARCHITECTURE.md](ARCHITECTURE.md). §15 there lists what is implemented and what is not.
 
+The Arrowhead-style LaTeX documentation (SysD and SysDD per system, SD and HTTP IDD per service, and the workflow SoSD and SoSDD) is in [documentation/v5.4.0](documentation/v5.4.0/README.md).
+
 > **Interoperability:** these systems exist **in Java only**. No Go or Rust implementation exists yet, so they are **not interoperable** across the three primary implementations. To port them, implement `workflow-model` (recipe, validator codes, transition rules) and the wire contract below. The examples and the conformance numbers serve as test vectors.
 
 ## Layout

@@ -443,7 +443,7 @@ ah-Workflow-java/                       (implemented layout)
 | Guarded transitions (`guards` per successor, `GuardExpression`), x-skip with dead-path elimination, validator G01–G05, `compile` marks guarded steps lossy | Implemented (2026-11-21); 8 unit tests; run in the Java test cloud |
 | WorkflowConfigurator: configured local clouds (ServiceRegistry, LocalCloudConfigurator designs, SoLC member clouds), their services, the executors' capabilities; graphical editor (state machine and sequence views, inspector, condition builder, undo, import/export); validate and store in the WfM; open stored recipes | Implemented (2026-11-21); 7 Spring tests, 9 Node tests of the editor model; verified in the Java test cloud and in a browser |
 | Go and Rust | **Not implemented: no interoperability yet** |
-| SysD/SD/IDD documents (LaTeX templates) | **Not written yet** |
+| SysD/SD/IDD documents (LaTeX templates) | Written 2026-11-23: `documentation/v5.4.0` has a SysD and SysDD per system, an SD and HTTP IDD per service (including the consumed `workflowProduct` contract and `generalManagement`), and the workflow SoSD and SoSDD; review draft |
 
 Verification on 2026-11-19: 21 model tests, 9 WorkflowManager tests (Spring, H2), 7 WorkflowExecutor tests (fake equipment), all passing; `verification/smoke/run-smoke.sh` (MySQL 8.4 with the shipped schema, one WfM, three WfEs, simulated plant): 18/18 checks, including three concurrent forklift sessions without overlapping tool use and lease expiry after a blocked AGV.
 

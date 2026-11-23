@@ -1,0 +1,387 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+\newcommand{\fparam}[1]{\textit{\textcolor{ArrowheadBlue}{#1}}}
+%% Special references
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\oref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:operations:#1]{#1}}}}
+\newcommand{\pdef}[1]{{\textcolor{ArrowheadGrey}{#1\label{sec:model:primitives:#1}\label{sec:model:primitives:#1s}}}}
+\newcommand{\pref}[1]{{\textcolor{ArrowheadGrey}{\hyperref[sec:model:primitives:#1]{#1}}}}
+
+\newrobustcmd\osubsection[5]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}operation \textcolor{ArrowheadBlue}{#1}}
+  \subsection*{
+    \thesubsection\quad
+    #2 \textcolor{ArrowheadPurple}{#3} \\
+    \small
+    \hspace*{0.075\textwidth}\begin{minipage}{0.1\textwidth}
+      \vspace*{1mm}
+      Operation: \\
+      \notblank{#4}{Input: \\}{}
+      \notblank{#5}{Output: \\}{}
+    \end{minipage}
+    \begin{minipage}{0.825\textwidth}
+      \vspace*{1mm}
+      \textcolor{ArrowheadBlue}{#1} \\
+      \notblank{#4}{\mref{#4} \\}{}
+      \notblank{#5}{\mref{#5} \\}{}
+    \end{minipage}
+  }
+  \label{sec:operations:#1}
+}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2} \label{sec:model:#2s}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{generalManagement HTTP/TLS/JSON}
+\ArrowheadServiceID{generalManagement}
+\ArrowheadType{Interface Design Description}
+\ArrowheadTypeShort{IDD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-23}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  \Large{Service ID: \textit{``\arrowid''}}
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the HTTP/TLS/JSON interface of the \texttt{generalManagement} service of the Eclipse Arrowhead workflow support systems, service version 1.0.0, documentation edition 5.4.0. It realises the abstract operations of the \texttt{generalManagement} SD.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+This document describes how the \texttt{generalManagement} service, which gives operators the log and selected configuration of each workflow system, is realised with HTTP~\cite{rfc9110}
+over TLS~\cite{rfc8446} and JSON~\cite{rfc8259} payloads. Request and response bodies use content type
+\texttt{application/json}; JSON field names are case-sensitive and fields not listed in this document must not be sent
+(the recipe decoder rejects unknown fields). Optional fields may be omitted; absent and \texttt{null} are equivalent.
+
+The base path \texttt{\{base\}} depends on the system: \texttt{/workflowmanager/general/mgmt} (port 8482),
+\texttt{/workflowexecutor/general/mgmt} (port 8483) and \texttt{/workflowconfigurator/general/mgmt} (port 8484).
+
+The rest of this document is organized as follows. Section~\ref{sec:operations} specifies each operation,
+Section~\ref{sec:model} the JSON data models, Section~\ref{sec:security} the security requirements,
+Section~\ref{sec:errors} the error representation and Section~\ref{sec:implementations} the implementations.
+
+\newpage
+\section{Service Operations}
+\label{sec:operations}
+
+{\small
+\begin{longtable}{|p{3.0cm}|p{1.5cm}|p{5.3cm}|p{3.0cm}|p{3.0cm}|}
+
+\hline
+\rowcolor{gray!33} Operation & Method & Path & Input & Output \\ \hline
+\endhead
+\oref{get-log} & POST & \texttt{\textbackslash{}\{base\textbackslash{}\}/\allowbreak{}logs} & \mref{LogRequest} & \mref{LogEntryList} \\ \hline
+\oref{get-config} & GET & \texttt{\textbackslash{}\{base\textbackslash{}\}/\allowbreak{}get-\allowbreak{}config} & \mref{ConfigKeys} & \mref{KeyValues} \\ \hline
+\end{longtable}
+}
+
+\osubsection{get-log}{POST}{\{base\}/logs}{LogRequest}{LogEntryList}
+Returns log entries matching the filter.
+
+{\small
+\begin{longtable}{|p{2.0cm}|p{13.8cm}|}
+
+\hline
+\rowcolor{gray!33} Status & When \\ \hline
+\endhead
+Success & 200 OK. \\ \hline
+400 & Invalid filter. \\ \hline
+401 & No valid identity token, or the token is bound to another certificate (\texttt{AUTH}). \\ \hline
+403 & The consumer has no ConsumerAuthorization grant for this operation (\texttt{FORBIDDEN}). \\ \hline
+\end{longtable}
+}
+
+
+\begin{lstlisting}[caption={Example request body}]
+{ "pagination": { "page": 0, "size": 20, "direction": "DESC" }, "severity": "ERROR" }
+\end{lstlisting}
+
+\osubsection{get-config}{GET}{\{base\}/get-config}{ConfigKeys}{KeyValues}
+Returns the values of allowed configuration keys.
+
+{\small
+\begin{longtable}{|p{3.0cm}|p{1.4cm}|p{3.2cm}|p{8.2cm}|}
+
+\hline
+\rowcolor{gray!33} Parameter & In & Type & Description \\ \hline
+\endhead
+\fparam{keys} & query & \pref{List}$<$\pref{String}$>$ & Repeated query parameter. \\ \hline
+\end{longtable}
+}
+
+
+{\small
+\begin{longtable}{|p{2.0cm}|p{13.8cm}|}
+
+\hline
+\rowcolor{gray!33} Status & When \\ \hline
+\endhead
+Success & 200 OK. \\ \hline
+401 & No valid identity token, or the token is bound to another certificate (\texttt{AUTH}). \\ \hline
+403 & The consumer has no ConsumerAuthorization grant for this operation (\texttt{FORBIDDEN}). \\ \hline
+\end{longtable}
+}
+
+
+\newpage
+\section{Data Models}
+\label{sec:model}
+The JSON objects exchanged by the operations, in alphabetic order. Field types refer to other data models or to the
+primitives of Section~\ref{sec:model:primitives}.
+
+\msubsection{struct}{ConfigKeys}
+Configuration keys to read.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{keys} & \pref{List}$<$\pref{String}$>$ & no & Property names; only keys on the system's allow-list are returned. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ErrorMessage}
+Error response of every operation (common library \texttt{ErrorMessageDTO}).
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{errorMessage} & \pref{String} & yes & Explanation. \\ \hline
+\texttt{errorCode} & \pref{Integer} & yes & HTTP status code. \\ \hline
+\texttt{exceptionType} & \pref{String} & yes & \texttt{INVALID\_PARAMETER}, \texttt{AUTH}, \texttt{FORBIDDEN}, \texttt{DATA\_NOT\_FOUND}, \texttt{EXTERNAL\_SERVER\_ERROR}, \ldots \\ \hline
+\texttt{origin} & \pref{String} & no & The operation that failed, e.g. \texttt{POST /workflowmanager/work-item/report}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{KeyValues}
+Configuration values.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{map} & \pref{Map}$<$\pref{String}, \pref{String}$>$ & yes & Key/value pairs. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{LogEntry}
+One log entry.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{logId} & \pref{String} & yes & Identifier. \\ \hline
+\texttt{entryDate} & \pref{DateTime} & yes & Time. \\ \hline
+\texttt{logger} & \pref{String} & yes & Logger. \\ \hline
+\texttt{severity} & \pref{String} & yes & Severity. \\ \hline
+\texttt{message} & \pref{String} & yes & Message. \\ \hline
+\texttt{exception} & \pref{String} & no & Exception, if any. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{LogEntryList}
+Log entries.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{entries} & \pref{List}$<$\mref{LogEntry}$>$ & yes & Entries. \\ \hline
+\texttt{count} & \pref{Integer} & yes & Total number of matching entries. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{LogRequest}
+Filter of \oref{get-log}; every field is optional.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{pagination} & \mref{Page} & no & Paging. \\ \hline
+\texttt{from} & \pref{DateTime} & no & Entries at or after. \\ \hline
+\texttt{to} & \pref{DateTime} & no & Entries at or before. \\ \hline
+\texttt{severity} & \pref{String} & no & Minimum severity (\texttt{TRACE}\ldots\texttt{ERROR}). \\ \hline
+\texttt{logger} & \pref{String} & no & Logger name filter. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Page}
+Paging.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{page} & \pref{Integer} & no & Page number from 0. \\ \hline
+\texttt{size} & \pref{Integer} & no & Page size. \\ \hline
+\texttt{direction} & \pref{String} & no & \texttt{ASC} or \texttt{DESC}. \\ \hline
+\texttt{sortField} & \pref{String} & no & Sort field. \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Primitives}
+\label{sec:model:primitives}
+The abstract primitive types of the SD are represented in JSON~\cite{rfc8259} as follows.
+\subsubsection*{alias \pdef{DateTime}}
+JSON string in the RFC 3339 format~\cite{rfc3339}, e.g. \texttt{2026-11-23T10:15:30Z}.
+
+\subsubsection*{alias \pdef{Integer}}
+JSON number without fraction.
+
+\subsubsection*{alias \pdef{List}}
+JSON array.
+
+\subsubsection*{alias \pdef{Map}}
+JSON object whose member names are the keys.
+
+\subsubsection*{alias \pdef{String}}
+JSON string (UTF-8).
+
+
+
+\section{Security}
+\label{sec:security}
+The interface is offered only over TLS~\cite{rfc8446} (TLS 1.3 or 1.2) with mutual authentication: the consumer must
+present an Arrowhead certificate issued under the local cloud's certificate authority, and certificates on the
+cloud's CRL are refused. The service is registered with interface template \texttt{generic\_https} and interface
+policy \texttt{CERT\_AUTH}.
+
+Every request must carry the consumer's identity token, obtained from the Authentication system and bound to the
+consumer's certificate:
+\begin{lstlisting}
+Authorization: Bearer IDENTITY-TOKEN//<identity token>
+\end{lstlisting}
+A token issued to another system's certificate is refused (401). The provider then checks a ConsumerAuthorization
+grant for the operation (\texttt{authorization.verify}, \texttt{service.authorization.enabled=true}); a missing grant is
+refused with 403. Sysop only (management policy).
+
+
+\section{Errors}
+\label{sec:errors}
+Every error response carries an \mref{ErrorMessage} body with content type \texttt{application/json}, for example:
+\begin{lstlisting}
+{ "errorMessage": "Work item 5d2c0b1e-... is held by another executor",
+  "errorCode": 403, "exceptionType": "FORBIDDEN",
+  "origin": "POST /workflowmanager/work-item/report" }
+\end{lstlisting}
+Status codes follow HTTP semantics~\cite{rfc9110}: 400 invalid parameter, 401 authentication, 403 forbidden, 404 not
+found, 409 conflict with the current state, 500 internal error and 503 failure of an external system.
+
+
+\section{Implementations}
+\label{sec:implementations}
+\begin{itemize}
+\item \textbf{Java (reference).} \texttt{Eclipse-Arrowhead-java/ah-Workflow-java}, modules \texttt{workflow-manager} (consumer side), \texttt{workflow-executor} and \texttt{workflow-configurator}. Paths, methods and service
+operations are defined once in \texttt{workflow-model} (\texttt{wire/WorkflowServices.java}, \texttt{wire/ServiceOperations.java}) or in the system's own constants class.
+\item \textbf{Go.} Not implemented: \texttt{Eclipse-Arrowhead-go} has no workflow systems. A Go implementation must
+provide exactly the paths, methods, JSON field names and status codes of this IDD to be interoperable.
+\item \textbf{Rust.} Not implemented: \texttt{Eclipse-Arrowhead-rust} has no workflow systems. The same requirement applies.
+\end{itemize}
+Until the Go and Rust implementations exist, the workflow systems are \emph{not} interoperable across the three
+implementations; only the Java systems interoperate with Java, Go and Rust core systems through the common Arrowhead
+interfaces (ServiceRegistry, Authentication, ConsumerAuthorization, DynamicServiceOrchestration).
+
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-23 & \arrowversion & Initial edition: interface design description of generalManagement over HTTP/TLS/JSON, written from the Java reference implementation (ah-Workflow-java). & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}
