@@ -125,7 +125,13 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: v
 
 .findings { max-height: 28%; overflow: auto; background: var(--panel); border-top: 1px solid var(--border); padding: 6px 12px; }
 .findings ul { list-style: none; margin: 4px 0; padding: 0; }
-.findings li { padding: 3px 6px; border-radius: 4px; cursor: pointer; display: flex; gap: 8px; }
+.findings li { padding: 3px 6px; border-radius: 4px; cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
+.findings li .msg { flex: 1; }
+.findings li .help-toggle { flex: none; color: var(--text); }
+.findings li.help { cursor: default; display: block; margin: 0 0 6px 46px; padding: 6px 10px; background: var(--panel-2); color: var(--text); border-left: 3px solid var(--accent); }
+.findings li.help p { margin: 4px 0; }
+.findings li.legend { cursor: default; font-size: 12px; }
+.findings li.legend:hover, .findings li.help:hover { background: var(--panel-2); }
 .findings li:hover { background: var(--panel-2); }
 .findings .code { font-family: ui-monospace, Menlo, monospace; font-size: 11px; min-width: 38px; }
 .sev-REVISE, .sev-REJECT, .sev-local { color: var(--error); }
@@ -229,3 +235,5 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: v
   .canvas-wrap { min-height: 50vh; }
   .cloud-picker select { width: 100%; }
 }
+
+.edge .leader { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2; fill: none; }

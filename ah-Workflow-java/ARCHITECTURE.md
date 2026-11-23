@@ -441,7 +441,7 @@ ah-Workflow-java/                       (implemented layout)
 | Federation through Gatekeeper, disconnected working copy | **Not implemented** (phase 4) |
 | Intent Translator, domain validator plug-ins | **Not implemented** (phase 5; the `RecipeCheck` SPI exists) |
 | Guarded transitions (`guards` per successor, `GuardExpression`), x-skip with dead-path elimination, validator G01–G05, `compile` marks guarded steps lossy | Implemented (2026-11-21); 8 unit tests; run in the Java test cloud |
-| WorkflowConfigurator: configured local clouds (ServiceRegistry, LocalCloudConfigurator designs, SoLC member clouds), their services, the executors' capabilities; graphical editor (state machine and sequence views, inspector, condition builder, undo, import/export); validate and store in the WfM; open stored recipes | Implemented (2026-11-21); 7 Spring tests, 9 Node tests of the editor model; verified in the Java test cloud and in a browser |
+| WorkflowConfigurator: configured local clouds (ServiceRegistry, LocalCloudConfigurator designs, SoLC member clouds), their services, the executors' capabilities; graphical editor (state machine and sequence views, inspector, condition builder, undo, import/export); validate and store in the WfM; open stored recipes | Implemented (2026-11-21); 7 Spring tests, 12 Node tests of the editor model; verified in the Java test cloud and in a browser |
 | Go and Rust | **Not implemented: no interoperability yet** |
 | SysD/SD/IDD documents (LaTeX templates) | Written 2026-11-23: `documentation/v5.4.0` has a SysD and SysDD per system, an SD and HTTP IDD per service (including the consumed `workflowProduct` contract and `generalManagement`), and the workflow SoSD and SoSDD; review draft |
 

@@ -71,10 +71,12 @@ The editor runs in a browser on the operator's machine. The console connector (p
 - Drag from a step's right handle to another step to add a transition (inside one action; the action list sets the order of actions).
 - Click a transition to give it a condition, written directly or with the condition builder; "Otherwise" negates the sibling branch.
 - The inspector edits the step: service, consumer (executor capability η(s) or the WorkflowManager), input template κ(s) with a reference picker, static parameters, timeout and retry.
+- Moving around: drag the background or scroll (two fingers on a trackpad) to pan; pinch, or scroll with Ctrl, Alt or Cmd held, to zoom around the pointer; Fit shows the whole workflow. A click on a step selects it; it moves only after the pointer has moved a few pixels.
+- Arrange lays the steps out in columns and widens the gap before a column so that the condition labels fit there. A label sits on its transition just in front of the target step; if that spot is taken, it moves up or down and keeps a dotted leader to its transition.
 - The sequence view shows the same workflow as a sequence diagram: lifelines for the WorkflowManager, the executor capabilities and the providers; `par` fragments for parallel steps; `alt`/`opt` fragments for guarded steps. Dropping a service there appends it after the selected step.
 
 **Checks and storing.**
-- "Checks" lists problems found while drawing.
+- "Checks" lists problems found while drawing (marked "while drawing") and the WorkflowManager's findings after Validate, each with its validator code. Click a line to select the step, transition or action it is about; "How to fix?" explains the code and what to change in the editor. Save needs the verdict ACCEPT, so REVISE and CLARIFY findings must be resolved first; information findings such as G04 need nothing.
 - Validate asks the WorkflowManager.
 - Save validates and registers the recipe in the WorkflowManager. Recipes are immutable, so different content under an existing version is refused, and the editor offers the next patch version.
 - Open loads any stored recipe. Positions and provider hints are kept per recipe in the browser only; the WorkflowManager stores the recipe itself.

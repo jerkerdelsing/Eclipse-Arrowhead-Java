@@ -482,7 +482,7 @@
     const vb = state.vb;
     svg.innerHTML = "";
     svg.append(defs());
-    const g = sv("g", { transform: "translate(" + (-vb.x * vb.k) + "," + (-vb.y * vb.k) + ") scale(" + vb.k + ")" });
+    const g = sv("g", { class: "viewport", transform: viewTransform(vb) });
     svg.append(g);
     const issues = issueMap();
     const sel = state.selection || {};
@@ -501,7 +501,7 @@
         select({ kind: "action", name: a.name });
         if (f.empty) {
           const p = svgPoint(svg, ev, vb);
-          drag = { kind: "action", name: a.name, dx: p.x - a.x, dy: p.y - a.y, before: snapshot() };
+          drag = { kind: "action", name: a.name, dx: p.x - a.x, dy: p.y - a.y, sx: ev.clientX, sy: ev.clientY, before: snapshot(), moved: false };
         }
       });
       g.append(fg);
@@ -524,30 +524,25 @@
       g.append(sv("circle", { class: "pseudo", cx: last.x + last.w + 50, cy: ly, r: 6 }));
     }
 
-    // transitions; their condition labels go to a layer above the steps
+    // transitions; their condition labels go to a layer above the steps, placed clear of steps and of each other
     const labels = sv("g", { class: "labels" });
+    const placed = M.labelLayout(doc);
     for (const t of doc.transitions) {
-      const a = M.step(doc, t.from), b = M.step(doc, t.to);
-      if (!a || !b) continue;
+      const e = M.edgeGeometry(doc, t);
+      if (!e) continue;
       const key = "transition " + t.from + " → " + t.to;
       const selected = sel.kind === "transition" && sel.from === t.from && sel.to === t.to;
-      const [x1, y1, x2, y2] = [a.x + W, a.y + H / 2, b.x, b.y + H / 2];
-      const back = x2 < x1 + 20;
-      const c = back ? Math.max(60, Math.abs(y2 - y1) / 2) : Math.max(30, (x2 - x1) / 2);
-      const d = back
-        ? "M" + x1 + "," + y1 + " C" + (x1 + c) + "," + (y1 + (y2 >= y1 ? 70 : -70)) + " " + (x2 - c) + "," + (y2 + (y2 >= y1 ? -70 : 70)) + " " + (x2 - 2) + "," + y2
-        : "M" + x1 + "," + y1 + " C" + (x1 + c) + "," + y1 + " " + (x2 - c) + "," + y2 + " " + (x2 - 2) + "," + y2;
       const eg = sv("g", { class: "edge" + (t.guard ? " guarded" : "") + (selected ? " selected" : "") + (issues[key] === "error" ? " issue-error" : "") });
-      eg.append(sv("path", { class: "line", d, "marker-end": selected ? "url(#arrow-sel)" : "url(#arrow)" }));
-      eg.append(sv("path", { class: "hit", d }));
+      eg.append(sv("path", { class: "line", d: e.d, "marker-end": selected ? "url(#arrow-sel)" : "url(#arrow)" }));
+      eg.append(sv("path", { class: "hit", d: e.d }));
       const pick = ev => { ev.stopPropagation(); select({ kind: "transition", from: t.from, to: t.to }); };
-      if (t.guard) {
-        const label = "[" + clip(t.guard, 30) + "]";
-        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-        const w = label.length * 6.4 + 10;
+      const lb = placed[t.from + "→" + t.to];
+      if (lb) {
         const lg = sv("g", { class: "edge" + (selected ? " selected" : "") });
-        lg.append(sv("rect", { class: "label", x: mx - w / 2, y: my - 10, width: w, height: 19, rx: 4 }));
-        lg.append(sv("text", { class: "label", x: mx, y: my + 4, "text-anchor": "middle", text: label }));
+        // a label moved off its curve keeps a thin leader to the point on the curve it belongs to
+        if (Math.abs(lb.y - lb.anchorY) > 2) lg.append(sv("path", { class: "leader", d: "M" + lb.x + "," + lb.anchorY + " L" + lb.x + "," + (lb.y + (lb.anchorY > lb.y ? lb.h / 2 : -lb.h / 2)) }));
+        lg.append(sv("rect", { class: "label", x: lb.x - lb.w / 2, y: lb.y - lb.h / 2, width: lb.w, height: lb.h, rx: 4 }));
+        lg.append(sv("text", { class: "label", x: lb.x, y: lb.y + 4, "text-anchor": "middle", text: lb.text }));
         lg.append(sv("title", { text: t.guard }));
         lg.addEventListener("pointerdown", pick);
         labels.append(lg);
@@ -585,7 +580,7 @@
         if (ev.button !== 0) return;
         ev.stopPropagation();
         const p = svgPoint(svg, ev, vb);
-        drag = { kind: "step", name: s.name, dx: p.x - s.x, dy: p.y - s.y, before: snapshot(), moved: false };
+        drag = { kind: "step", name: s.name, dx: p.x - s.x, dy: p.y - s.y, sx: ev.clientX, sy: ev.clientY, before: snapshot(), moved: false };
         svg.setPointerCapture(ev.pointerId);
         if (!selected) select({ kind: "step", name: s.name });
       });
@@ -604,11 +599,17 @@
     if (!drag) return;
     const vb = state.view === "sequence" ? state.seqVb : state.vb;
     if (drag.kind === "pan") {
+      if (!drag.moved && Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) < DRAG_START_PX) return;
+      drag.moved = true;
+      state.viewMoved = true;
+      $("canvas").classList.add("panning");
       vb.x = drag.vx - (ev.clientX - drag.sx) / vb.k;
       vb.y = drag.vy - (ev.clientY - drag.sy) / vb.k;
-      renderCanvas();
+      moveViewport();
       return;
     }
+    // a click on a step or frame must not nudge it: moving starts after a few pixels
+    if ((drag.kind === "step" || drag.kind === "action") && !drag.moved && Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) < DRAG_START_PX) return;
     const p = svgPoint(svg, ev, vb);
     if (drag.kind === "step") {
       const s = M.step(state.doc, drag.name);
@@ -627,6 +628,32 @@
       const x1 = a.x + W, y1 = a.y + H / 2;
       drag.line.setAttribute("d", "M" + x1 + "," + y1 + " C" + (x1 + 60) + "," + y1 + " " + (p.x - 60) + "," + p.y + " " + p.x + "," + p.y);
     }
+  }
+
+  const DRAG_START_PX = 4;
+
+  function viewTransform(vb) {
+    return "translate(" + (-vb.x * vb.k) + "," + (-vb.y * vb.k) + ") scale(" + vb.k + ")";
+  }
+
+  // panning only moves the drawing: one transform update per frame instead of rebuilding the diagram on every event
+  let movePending = false;
+  function moveViewport() {
+    if (movePending) return;
+    movePending = true;
+    requestAnimationFrame(() => {
+      movePending = false;
+      const vb = state.view === "sequence" ? state.seqVb : state.vb;
+      const g = $("canvas").querySelector("g.viewport");
+      if (g) g.setAttribute("transform", viewTransform(vb)); else renderCanvas();
+    });
+  }
+
+  let canvasPending = false;
+  function renderCanvasThrottled() {
+    if (canvasPending) return;
+    canvasPending = true;
+    requestAnimationFrame(() => { canvasPending = false; renderCanvas(); });
   }
 
   let rafPending = false;
@@ -681,24 +708,33 @@
   function onPointerDownBackground(ev) {
     if (ev.button !== 0 && ev.button !== 1) return;
     const vb = state.view === "sequence" ? state.seqVb : state.vb;
-    drag = { kind: "pan", sx: ev.clientX, sy: ev.clientY, vx: vb.x, vy: vb.y };
-    state.viewMoved = true;
-    $("canvas").classList.add("panning");
+    drag = { kind: "pan", sx: ev.clientX, sy: ev.clientY, vx: vb.x, vy: vb.y, moved: false };
     $("canvas").setPointerCapture(ev.pointerId);
     if (state.selection) select(null);
   }
+
 
   function onWheel(ev) {
     ev.preventDefault();
     state.viewMoved = true;
     const vb = state.view === "sequence" ? state.seqVb : state.vb;
-    const svg = $("canvas");
-    const p = svgPoint(svg, ev, vb);
-    const k = Math.min(2.5, Math.max(0.25, vb.k * (ev.deltaY < 0 ? 1.1 : 1 / 1.1)));
-    vb.x = p.x - (p.x - vb.x) * vb.k / k;
-    vb.y = p.y - (p.y - vb.y) * vb.k / k;
-    vb.k = k;
-    renderCanvas();
+    // deltaMode 1 = lines (a mouse wheel), 0 = pixels (a trackpad)
+    const unit = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
+    const dx = ev.deltaX * unit, dy = ev.deltaY * unit;
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) {
+      // pinch arrives as ctrl + wheel with small deltas; the factor follows the delta and is capped per event
+      const p = svgPoint($("canvas"), ev, vb);
+      const factor = Math.exp(-Math.max(-60, Math.min(60, dy)) * 0.004);
+      const k = Math.min(2.5, Math.max(0.25, vb.k * factor));
+      vb.x = p.x - (p.x - vb.x) * vb.k / k;
+      vb.y = p.y - (p.y - vb.y) * vb.k / k;
+      vb.k = k;
+      renderCanvasThrottled();
+      return;
+    }
+    vb.x += (ev.shiftKey && !dx ? dy : dx) / vb.k;
+    vb.y += (ev.shiftKey && !dx ? 0 : dy) / vb.k;
+    moveViewport();
   }
 
   function zoom(factor) {
@@ -752,7 +788,7 @@
     const sel = state.selection || {};
     svg.innerHTML = "";
     svg.append(defs());
-    const g = sv("g", { transform: "translate(" + (-vb.x * vb.k) + "," + (-vb.y * vb.k) + ") scale(" + vb.k + ")" });
+    const g = sv("g", { class: "viewport", transform: viewTransform(vb) });
     svg.append(g);
     const X0 = 110, DX = 200, TOP = 30;
     const xs = {};
@@ -1068,16 +1104,33 @@
   function renderFindings() {
     const list = $("findings-list");
     list.innerHTML = "";
-    const local = M.localIssues(state.doc).map(i => ({ code: "local", outcome: "local", location: i.where, message: i.message }));
+    const local = M.localIssues(state.doc).map(i => ({ code: i.code || "local", outcome: "local", location: i.where, message: i.message }));
     const all = local.concat(state.serverFindings);
-    const errors = all.filter(f => ["local", "REVISE", "REJECT"].includes(f.outcome)).length;
+    const errors = all.filter(f => ["local", "REVISE", "REJECT", "CLARIFY"].includes(f.outcome)).length;
     $("findings-summary").textContent = all.length
-      ? errors + " to fix" + (state.serverFindings.length ? " · WorkflowManager: " + state.serverVerdict : " · not validated with the WorkflowManager yet")
+      ? errors + " to resolve" + (state.serverFindings.length ? " · WorkflowManager: " + state.serverVerdict : " · not validated with the WorkflowManager yet")
       : (state.serverVerdict ? "WorkflowManager: " + state.serverVerdict : "no issues found while drawing");
     for (const f of all) {
-      const li = el("li", { class: "sev-" + f.outcome, onclick: () => selectLocation(f.location) },
-        el("span", { class: "code" }, f.code === "local" ? "draw" : f.code), el("span", {}, (f.location ? f.location + ": " : "") + f.message));
+      const help = M.FINDING_HELP[f.code];
+      const key = f.code + "|" + f.location + "|" + f.message;
+      const open = state.openHelp === key;
+      const helpButton = el("button", { class: "small help-toggle", title: "How to fix this", "aria-expanded": open ? "true" : "false",
+        onclick: ev => { ev.stopPropagation(); state.openHelp = open ? null : key; renderFindings(); } }, open ? "Hide help" : f.outcome === "ACCEPT" ? "What does this mean?" : "How to fix?");
+      const li = el("li", { class: "sev-" + f.outcome, onclick: () => selectLocation(f.location), title: "Select " + (f.location || "the workflow") },
+        el("span", { class: "code" }, f.code === "local" ? "draw" : f.code),
+        el("span", { class: "msg" }, (f.location ? f.location + ": " : "") + f.message, f.outcome === "local" ? el("span", { class: "muted" }, " (while drawing)") : null),
+        helpButton);
       list.append(li);
+      if (open) {
+        list.append(el("li", { class: "help" },
+          el("div", {},
+            el("strong", {}, help ? help.title : "No specific help for " + f.code),
+            el("p", {}, help ? help.fix : "Select the item to see it in the diagram, and compare with the message. The README describes the validator rules."),
+            el("p", { class: "muted" }, M.OUTCOME_HELP[f.outcome] || ""))));
+      }
+    }
+    if (all.length) {
+      list.append(el("li", { class: "legend muted" }, "Click a line to select the item it is about. Save stores the workflow only when the WorkflowManager answers ACCEPT; REVISE and CLARIFY must be resolved first, information (ACCEPT) needs nothing."));
     }
   }
 

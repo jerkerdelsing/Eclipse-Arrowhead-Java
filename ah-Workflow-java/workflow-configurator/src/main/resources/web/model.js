@@ -213,24 +213,117 @@
 
   // ------------------------------------------------------------------------------------------- layout
 
-  /** Places actions left to right, steps in columns by depth inside their action frame. */
+  /** The label shown on a guarded transition, and its width in canvas units (the canvas font is ~6.4 units per character). */
+  function guardLabel(guard) {
+    const g = String(guard || "");
+    return "[" + (g.length > 30 ? g.slice(0, 29) + "…" : g) + "]";
+  }
+
+  function labelWidth(text) {
+    return text.length * 6.4 + 10;
+  }
+
+  const LABEL_H = 19, LABEL_MARGIN = 14;
+
+  /**
+   * Places actions left to right, steps in columns by depth inside their action frame. The gap before a column is wide enough
+   * for the condition labels of the transitions that end there, since those labels sit just in front of their target step.
+   */
   function autoLayout(doc) {
     let x = ORIGIN_X;
     for (const a of doc.actions) {
       const lv = levels(doc, a.name);
+      const colOf = {};
+      lv.forEach((names, col) => names.forEach(n => { colOf[n] = col; }));
+      const gap = lv.map(() => COL_GAP);
+      for (const t of doc.transitions) {
+        if (!t.guard || colOf[t.to] == null || colOf[t.from] == null || colOf[t.to] <= colOf[t.from]) continue;
+        gap[colOf[t.to]] = Math.max(gap[colOf[t.to]], labelWidth(guardLabel(t.guard)) + 2 * LABEL_MARGIN + 20);
+      }
       a.x = x;
       a.y = ORIGIN_Y;
+      let colX = x + FRAME_PAD;
       lv.forEach((names, col) => {
+        if (col > 0) colX += STEP_W + gap[col];
         names.forEach((n, row) => {
           const s = step(doc, n);
-          s.x = x + FRAME_PAD + col * (STEP_W + COL_GAP);
+          s.x = colX;
           s.y = ORIGIN_Y + FRAME_PAD + 20 + row * (STEP_H + ROW_GAP);
         });
       });
-      const cols = Math.max(1, lv.length);
-      x += FRAME_PAD * 2 + cols * STEP_W + (cols - 1) * COL_GAP + FRAME_GAP;
+      x = colX + STEP_W + FRAME_PAD + FRAME_GAP;
     }
     return doc;
+  }
+
+  /** The drawn curve of a transition: from the right edge of its source to the left edge of its target (cubic Bézier). */
+  function edgeGeometry(doc, t) {
+    const a = step(doc, t.from), b = step(doc, t.to);
+    if (!a || !b) return null;
+    const x1 = a.x + STEP_W, y1 = a.y + STEP_H / 2, x2 = b.x, y2 = b.y + STEP_H / 2;
+    const back = x2 < x1 + 20;
+    let pts;
+    if (back) {
+      const c = Math.max(60, Math.abs(y2 - y1) / 2), dy = y2 >= y1 ? 70 : -70;
+      pts = [[x1, y1], [x1 + c, y1 + dy], [x2 - c, y2 - dy], [x2 - 2, y2]];
+    } else {
+      const c = Math.max(30, (x2 - x1) / 2);
+      pts = [[x1, y1], [x1 + c, y1], [x2 - c, y2], [x2 - 2, y2]];
+    }
+    const d = "M" + pts[0] + " C" + pts[1] + " " + pts[2] + " " + pts[3];
+    return { x1, y1, x2, y2, back, pts, d };
+  }
+
+  function bezier(pts, t) {
+    const u = 1 - t;
+    const f = i => u * u * u * pts[0][i] + 3 * u * u * t * pts[1][i] + 3 * u * t * t * pts[2][i] + t * t * t * pts[3][i];
+    return [f(0), f(1)];
+  }
+
+  /** y of a forward curve at x (x grows with t on a forward edge). */
+  function yAt(pts, x) {
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 30; i++) {
+      const mid = (lo + hi) / 2;
+      if (bezier(pts, mid)[0] < x) lo = mid; else hi = mid;
+    }
+    return bezier(pts, (lo + hi) / 2)[1];
+  }
+
+  function overlaps(r, q) {
+    return r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h;
+  }
+
+  /**
+   * Positions of the condition labels: on the curve just in front of the target step (where the curves of different targets are
+   * apart), moved up or down along the gap when that would cover a step or another label. Keyed "from→to"; x, y are the centre.
+   */
+  function labelLayout(doc) {
+    const out = {};
+    const blocked = doc.steps.map(s => ({ x: s.x - 6, y: s.y - 6, w: STEP_W + 12, h: STEP_H + 12 }));
+    for (const t of doc.transitions) {
+      if (!t.guard) continue;
+      const e = edgeGeometry(doc, t);
+      if (!e) continue;
+      const text = guardLabel(t.guard), w = labelWidth(text);
+      let cx, cy;
+      if (e.back) {
+        [cx, cy] = bezier(e.pts, 0.5);
+      } else {
+        cx = Math.max((e.x1 + e.x2) / 2, e.x2 - LABEL_MARGIN - w / 2);
+        cy = yAt(e.pts, cx);
+      }
+      let rect = null;
+      for (let i = 0; i < 17; i++) {
+        const dy = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * (LABEL_H + 4);
+        const r = { x: cx - w / 2, y: cy + dy - LABEL_H / 2, w, h: LABEL_H };
+        if (!blocked.some(q => overlaps(r, q))) { rect = r; break; }
+      }
+      rect = rect || { x: cx - w / 2, y: cy - LABEL_H / 2, w, h: LABEL_H };
+      blocked.push({ x: rect.x - 3, y: rect.y - 2, w: rect.w + 6, h: rect.h + 4 });
+      out[t.from + "→" + t.to] = { text, w, h: LABEL_H, x: rect.x + w / 2, y: rect.y + LABEL_H / 2, anchorY: cy };
+    }
+    return out;
   }
 
   /** Bounding frame of an action: its steps plus padding, or a placeholder at its own position. */
@@ -374,29 +467,29 @@
   /** Quick checks while drawing; the WorkflowManager's validator is the authority (Validate / Save). */
   function localIssues(doc) {
     const issues = [];
-    const add = (where, message) => issues.push({ where, message });
-    if (!IDENT.test(doc.meta.name || "")) add("recipe", "Name must start with a letter: letters, digits, - and _ (up to 63)");
-    if (!VERSION.test(doc.meta.version || "")) add("recipe", "Version must be MAJOR.MINOR.PATCH");
-    if (!doc.actions.length) add("recipe", "Add at least one action");
+    const add = (where, message, code) => issues.push({ where, message, code });
+    if (!IDENT.test(doc.meta.name || "")) add("recipe", "Name must start with a letter: letters, digits, - and _ (up to 63)", "S00");
+    if (!VERSION.test(doc.meta.version || "")) add("recipe", "Version must be MAJOR.MINOR.PATCH", "S00");
+    if (!doc.actions.length) add("recipe", "Add at least one action", "S08");
     const names = new Set();
     for (const a of doc.actions) {
-      if (!IDENT.test(a.name)) add("action " + a.name, "Action name is not an identifier");
-      if (names.has(a.name)) add("action " + a.name, "Duplicate name");
+      if (!IDENT.test(a.name)) add("action " + a.name, "Action name is not an identifier", "S00");
+      if (names.has(a.name)) add("action " + a.name, "Duplicate name", "S01");
       names.add(a.name);
-      if (!stepsOf(doc, a.name).length) add("action " + a.name, "Action has no steps: drag a service into it");
+      if (!stepsOf(doc, a.name).length) add("action " + a.name, "Action has no steps: drag a service into it", "S08");
     }
     for (const s of doc.steps) {
-      if (!IDENT.test(s.name)) add("step " + s.name, "Step name is not an identifier");
-      if (names.has(s.name)) add("step " + s.name, "Duplicate name");
+      if (!IDENT.test(s.name)) add("step " + s.name, "Step name is not an identifier", "S00");
+      if (names.has(s.name)) add("step " + s.name, "Duplicate name", "S02");
       names.add(s.name);
-      if (!s.service || !s.service.serviceDefinition) add("step " + s.name, "Choose a service");
+      if (!s.service || !s.service.serviceDefinition) add("step " + s.name, "Choose a service", "S09");
       const preceding = new Set(precedingSteps(doc, s.name));
       if (s.input != null) {
         templateReferences(s.input).steps.forEach(r => {
-          if (!preceding.has(r)) add("step " + s.name, "Input reads the result of '" + r + "', which does not run before this step");
+          if (!preceding.has(r)) add("step " + s.name, "Input reads the result of '" + r + "', which does not run before this step", "D03");
         });
         templateReferences(s.input).params.forEach(p => {
-          if (!doc.parameters.some(x => x.name === p)) add("step " + s.name, "Input reads undeclared parameter '" + p + "'");
+          if (!doc.parameters.some(x => x.name === p)) add("step " + s.name, "Input reads undeclared parameter '" + p + "'", "D05");
         });
       }
     }
@@ -405,12 +498,12 @@
       const where = "transition " + t.from + " → " + t.to;
       const r = checkGuard(t.guard);
       if (r.error) {
-        add(where, "Condition: " + r.error);
+        add(where, "Condition: " + r.error, "G02");
         continue;
       }
       const allowed = new Set(precedingSteps(doc, t.from).concat([t.from]));
-      r.steps.forEach(n => { if (!allowed.has(n)) add(where, "Condition reads '" + n + "', whose result does not exist yet"); });
-      r.params.forEach(p => { if (!doc.parameters.some(x => x.name === p)) add(where, "Condition reads undeclared parameter '" + p + "'"); });
+      r.steps.forEach(n => { if (!allowed.has(n)) add(where, "Condition reads '" + n + "', whose result does not exist yet", "G03"); });
+      r.params.forEach(p => { if (!doc.parameters.some(x => x.name === p)) add(where, "Condition reads undeclared parameter '" + p + "'", "G05"); });
     }
     return issues;
   }
@@ -560,11 +653,86 @@
     return newStep;
   }
 
+  // ------------------------------------------------------------------------------------------- validation help
+
+  /** What each outcome means for saving. Save stores a workflow only when the WorkflowManager's verdict is ACCEPT. */
+  const OUTCOME_HELP = {
+    REJECT: "Must be fixed: the WorkflowManager refuses the workflow.",
+    REVISE: "Must be fixed before the workflow can be saved.",
+    CLARIFY: "Must be resolved before saving: the WorkflowManager cannot confirm this part against the running cloud.",
+    ACCEPT: "Information only: nothing to fix.",
+    local: "Found while drawing. The WorkflowManager would report the same problem; fix it before you validate or save."
+  };
+
+  /** Help per validator code: what it means and how to fix it in this editor. */
+  const FINDING_HELP = {
+    S00: { title: "Name or version not valid",
+      fix: "Names of the workflow, its actions and steps start with a letter and use only letters, digits, - and _ (at most 63). The version is MAJOR.MINOR.PATCH, for example 1.0.0. Click the item in the list to select it and rename it in the side panel; the workflow's name and version are in the Workflow panel (click an empty part of the canvas)." },
+    S01: { title: "Two actions have the same name",
+      fix: "Select one of the actions (click its frame title) and rename it." },
+    S02: { title: "Two steps have the same name",
+      fix: "Step names must be unique across the whole workflow, also between actions. Select one of the steps and rename it." },
+    S03: { title: "The first action does not exist",
+      fix: "The editor normally sets the first action itself. Delete and re-add the first action, or import the recipe again; if the problem stays, check firstAction in the Recipe JSON view." },
+    S04: { title: "The next action does not exist",
+      fix: "Actions run in the order shown. Select an action and use Run earlier / Run later to reorder; the editor sets each action's next action from that order." },
+    S05: { title: "Action cannot be reached, or actions form a loop",
+      fix: "Actions run one after the other from the first. Reorder the actions with Run earlier / Run later, or delete the action that is not reached." },
+    S06: { title: "Transition to a step in another action",
+      fix: "Transitions stay inside one action. Delete the transition, or drag the target step into the same action frame. Work that continues in another action follows the action order instead." },
+    S07: { title: "The steps form a loop",
+      fix: "A workflow cannot repeat steps. Remove one transition of the loop. To repeat work, start a new session of the workflow." },
+    S08: { title: "Workflow or action is empty",
+      fix: "Drag a service from the Services panel into the action frame (or double-click it), or delete the empty action." },
+    S09: { title: "Step has no service",
+      fix: "Select the step and choose a service in the side panel, or drop a service from the Services panel onto the canvas." },
+    P01: { title: "Two session parameters have the same name",
+      fix: "Open the Workflow panel (click an empty part of the canvas) and rename or remove one of the parameters." },
+    D01: { title: "Dependency on an unknown step",
+      fix: "The step lists a dependency on a step that does not exist (usually from an imported recipe). Remove it from the step's dep list in the Recipe JSON view and import again, or add a step of that name." },
+    D02: { title: "Dependency does not run first",
+      fix: "A step may only depend on steps that run before it in the same action, following the transitions. Draw transitions so that the dependency comes first, or stop reading its result in the step's Input." },
+    D03: { title: "Input reads a result the step cannot see",
+      fix: "An input like ${result.read.temperature} may only read a step that runs before this one in the same action. Draw transitions so that the step it reads comes first, or change the step's Input κ(s). The editor adds the step it reads to the dependencies itself." },
+    D04: { title: "Input needs a service result no dependency provides",
+      fix: "Read the result of a step that calls the needed service in the step's Input κ(s) (and make that step run first), or change the input." },
+    D05: { title: "Input reads an undeclared session parameter",
+      fix: "An input like ${param.threshold} needs a parameter of that name. Declare it in the Workflow panel's Parameters, or correct the spelling." },
+    G01: { title: "Condition on a transition that does not exist",
+      fix: "The condition belongs to a transition that was removed. Select the step and remove the condition, or draw the transition again." },
+    G02: { title: "Condition cannot be read",
+      fix: "Conditions use ${param.name} and ${result.step.field}, numbers, 'text', true, false, null, the comparisons == != < <= > >=, and && || ! with parentheses. Example: ${result.evaluate.temperature} < 23 && ${param.mode} == 'auto'. Select the transition and correct the condition, or use the condition builder." },
+    G03: { title: "Condition reads a result that may not exist yet",
+      fix: "A condition on a transition from step A may read the result of A itself or of steps that run before A. Change the condition to read such a step, or move it to a later transition." },
+    G04: { title: "Workflow uses conditions (information)",
+      fix: "Nothing to fix. A session can skip steps whose conditions are false; such runs are outside the proven model (Theorems 1–2), which the WorkflowManager notes for every workflow with conditions." },
+    G05: { title: "Condition reads an undeclared session parameter",
+      fix: "Declare the parameter in the Workflow panel's Parameters, or correct the spelling in the condition." },
+    L01: { title: "Lease of an undeclared resource",
+      fix: "Declare the resource (for example the shared tool) in the recipe's resources in the Recipe JSON view, or remove the lease from the step's Other policy fields." },
+    L02: { title: "No reserve step before the tool use",
+      fix: "A step that uses a leased resource needs a step that reserves it earlier. Add a reserve step before it and connect them with transitions." },
+    L03: { title: "Tool use does not depend on its reserve step",
+      fix: "Read the lease token from the reserve step in this step's Input κ(s), for example ${result.reserve.lease}; that makes the reserve step a dependency." },
+    L04: { title: "Lease duration missing or too short",
+      fix: "Declare a lease duration for the resource (Recipe JSON view) that is longer than the nominal duration of the steps that use it (nominalDurationSeconds in the step's Other policy fields)." },
+    L05: { title: "No release step after the tool use",
+      fix: "Add a step that releases the resource after its last use and connect it with a transition." },
+    M01: { title: "Quantity above 1",
+      fix: "A step runs once per session. Draw the step several times, or start several sessions." },
+    M02: { title: "Executor choice without capability",
+      fix: "The step names a workstation or system for its executor but no capability. Choose an executor capability under Consumer of the service in the step panel, or remove the workstation/system in the Recipe JSON view." },
+    C01: { title: "Service not found in the running cloud",
+      fix: "The WorkflowManager cannot find a provider of this service in the ServiceRegistry. Check the spelling, pick the service from the Services panel, or start and register the provider; then validate again." },
+    C02: { title: "No executor can run the step",
+      fix: "No running executor offers the step's capability η. Choose another capability under Consumer of the service in the step panel (the list shows which executors offer each), or start an executor that has it." }
+  };
+
   const api = {
     STEP_W, STEP_H, FRAME_PAD, IDENT, VERSION,
     emptyDocument, clone, step, stepsOf, successors, predecessors, uniqueName, uniqueActionName,
     templateReferences, precedingSteps, renameStep, removeStep, removeAction, renameAction, connect, reaches, levels,
-    autoLayout, frame, toRecipe, fromRecipe, layoutOf, applyLayout, localIssues, checkGuard, sequence, appendAfter
+    autoLayout, edgeGeometry, labelLayout, guardLabel, labelWidth, FINDING_HELP, OUTCOME_HELP, frame, toRecipe, fromRecipe, layoutOf, applyLayout, localIssues, checkGuard, sequence, appendAfter
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.WfModel = api;

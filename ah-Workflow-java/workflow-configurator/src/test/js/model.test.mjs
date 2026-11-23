@@ -1,4 +1,4 @@
-// Unit tests of the editor model (no browser): node --test workflow-configurator/src/test/js
+// Unit tests of the editor model (no browser): node --test workflow-configurator/src/test/js/model.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -105,4 +105,42 @@ test("layout survives a reload", () => {
   const again = M.fromRecipe(M.toRecipe(doc), M.layoutOf(doc));
   assert.equal(M.step(again, "read").x, 999);
   assert.equal(M.step(again, "read").provider, "WfEquipment");
+});
+
+const box = s => ({ x: s.x, y: s.y, w: M.STEP_W, h: M.STEP_H });
+const hit = (r, q) => r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h;
+const labelRects = doc => Object.values(M.labelLayout(doc)).map(l => ({ x: l.x - l.w / 2, y: l.y - l.h / 2, w: l.w, h: l.h }));
+
+test("after Arrange, condition labels cover no step and no other label", () => {
+  // fan-out with long conditions, a join, and a transition that skips a column
+  const doc = M.emptyDocument();
+  const action = doc.actions[0].name;
+  for (const n of ["read", "decide", "a", "b", "c", "join"]) doc.steps.push({ name: n, action, service: { serviceDefinition: "svc-" + n }, params: {}, input: null, dep: [], policy: {}, x: 0, y: 0 });
+  const t = (from, to, guard) => doc.transitions.push(guard ? { from, to, guard } : { from, to });
+  t("read", "decide");
+  t("decide", "a", "${result.decide.temperature} < ${param.lowThreshold}");
+  t("decide", "b", "${result.decide.temperature} >= ${param.lowThreshold} && ${result.decide.temperature} < 30");
+  t("decide", "c", "${result.decide.temperature} >= 30");
+  t("a", "join"); t("b", "join"); t("c", "join");
+  t("read", "join", "${result.read.ok} == false");
+  M.autoLayout(doc);
+  const labels = labelRects(doc);
+  assert.equal(labels.length, 4);
+  for (const l of labels) for (const s of doc.steps) assert.ok(!hit(l, box(s)), "label over step " + s.name);
+  for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) assert.ok(!hit(labels[i], labels[j]), "labels overlap");
+});
+
+test("the branching example keeps its labels clear after Arrange", () => {
+  const doc = M.autoLayout(M.fromRecipe(example("temperature-branching.recipe.json")));
+  for (const l of labelRects(doc)) for (const s of doc.steps) assert.ok(!hit(l, box(s)), "label over step " + s.name);
+});
+
+test("every validator code has help", () => {
+  const dir = new URL("../../../../workflow-model/src/main/java/eu/arrowhead/workflow/model/validation/", import.meta.url);
+  const wfm = new URL("../../../../workflow-manager/src/main/java/eu/arrowhead/workflowmanager/service/CatalogueCheck.java", import.meta.url);
+  const src = readFileSync(new URL("RecipeValidator.java", dir), "utf8") + readFileSync(wfm, "utf8");
+  const codes = new Set([...src.matchAll(/new Finding\("([A-Z]\d\d)"/g)].map(m => m[1]));
+  assert.ok(codes.size >= 25);
+  for (const c of codes) assert.ok(M.FINDING_HELP[c] && M.FINDING_HELP[c].fix, "help for " + c);
+  for (const i of M.localIssues(M.emptyDocument())) assert.ok(M.FINDING_HELP[i.code], "drawing check " + i.message + " has a code with help");
 });
