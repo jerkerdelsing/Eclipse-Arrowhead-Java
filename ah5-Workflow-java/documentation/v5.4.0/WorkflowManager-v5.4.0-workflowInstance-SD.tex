@@ -1,0 +1,434 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+%% Special references
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\oref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:operations:#1]{#1}}}}
+\newcommand{\pdef}[1]{{\textcolor{ArrowheadGrey}{#1\label{sec:model:primitives:#1}\label{sec:model:primitives:#1s}\label{sec:model:primitives:#1es}}}}
+\newcommand{\pref}[1]{{\textcolor{ArrowheadGrey}{\hyperref[sec:model:primitives:#1]{#1}}}}
+
+\newrobustcmd\osubsection[3]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}operation \textcolor{ArrowheadBlue}{#1}}
+  \subsection*{
+    \thesubsection\quad
+    operation
+    \textcolor{ArrowheadBlue}{#1}
+    (\notblank{#2}{\mref{#2}}{})
+    \notblank{#3}{: \mref{#3}}{}
+  }
+  \label{sec:operations:#1}
+}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2} \label{sec:model:#2s} \label{sec:model:#2es}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{workflowInstance}
+\ArrowheadServiceID{workflowInstance}
+\ArrowheadType{Service Description}
+\ArrowheadTypeShort{SD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-23}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  \Large{Service ID: \textit{``\arrowid''}}
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the \texttt{workflowInstance} service of the Eclipse Arrowhead workflow support systems, which starts, observes and aborts workflow sessions. It is provided by the WorkflowManager system, service version 1.0.0, documentation edition 5.4.0.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+The \texttt{workflowInstance} service starts and observes \emph{sessions}. A session is one
+execution of one immutable recipe version for one subject: a product unit, a control period or a batch. Its state is
+$z = (M, M_A, \beta, \varepsilon, \xi, status)$~\cite{varga2026}: the step and action markings, the service bindings,
+the executor assignment, the stored results and the status. The WorkflowManager advances the state with the transition
+rules of the model, dispatches enabled steps to WorkflowExecutors, and exposes the markings and the full trace through
+this service.
+
+The rest of this document is organized as follows.
+In Section~\ref{sec:operations}, we describe the abstract message operations provided by the service.
+In Section~\ref{sec:model}, we end the document by presenting the data types used by the mentioned operations.
+
+\subsection{Significant Prior Art}
+The session state and its eight transition rules (A-Start, S-Enable, S-Bind, S-Done, A-Finish, Z-Close,
+S-FailBind, S-FailInvoke) are those of Varga~\cite{varga2026}, which also proves that a failure-free run of a
+well-formed recipe takes exactly $3|S| + 2|A|$ transitions (Theorem~1) and always progresses (Theorem~2). The
+product-driven start, where the product hands its recipe to the work centre, is Derhamy's Intelligent Product
+pattern~\cite{derhamy2018workflow}.
+
+\subsection{How This Service Is Meant to Be Used}
+A consumer starts a session with \oref{start}, naming a registered recipe (and optionally its version), the
+session parameters $\rho$ and the dispatch mode. Alternatively it names a \texttt{product} system: the WorkflowManager
+then retrieves the recipe fragment and parameters from the product's \texttt{workflowProduct} service and stores the
+results back when the session completes. The owner follows the session with \oref{get-status} and \oref{get-trace} and may
+stop it with \oref{abort}. \oref{query} lists sessions, e.g. all \texttt{running} ones.
+
+\subsection{Important Delimitations and Dependencies}
+\label{sec:delimitations}
+\begin{itemize}
+\item Failure is absorbing: a failed session never resumes. A new session must be started.
+\item Theorems~1--2 hold only for sessions without extensions. The \texttt{extensions} field and \texttt{withinModel} in the trace say whether a session used retry/rebind, abort, timeout or guarded skipping.
+\item Only the owner (the starting system) or a sysop may abort a session.
+\item Sessions run in one local cloud. Delegation of actions to WorkflowManagers in other clouds is not implemented.
+\item The \texttt{event} dispatch mode is accepted but handled as \texttt{pull}.
+\end{itemize}
+
+\paragraph{Authorization.} Each operation is authorized separately. \texttt{abort} additionally requires the caller to be the session owner or a sysop.
+
+\newpage
+\section{Service Interface}
+\label{sec:operations}
+This section describes the interface of the \texttt{workflowInstance} service. Each subsection names an abstract operation,
+an input type and an output type, in that order. The input type is named inside parentheses, while the output type is
+preceded by a colon. Input and output types are only denoted when accepted or returned, respectively, by the operation
+in question. All abstract data types named in this section are defined in Section~\ref{sec:model}. The concrete
+interface (HTTP/TLS/JSON) is specified in the IDD of the same name.
+
+\begin{figure}[ht!]
+  \centering
+  \resizebox{0.92\textwidth}{!}{
+\begin{tikzpicture}
+\node[ahsys] (prov) at (4.6,0) {WorkflowManager\\[-1pt]{\normalfont\scriptsize $\ll$provider$\gg$}};
+\node[ahsrv] (srv) at (1.6,0) {workflowInstance};
+\draw[thick,ArrowheadPurple] (srv.east) -- (prov.west);
+\node[ahext] (c0) at (-3.0,1.20) {Intelligent Product\\[-1pt]{\scriptsize $\ll$consumer$\gg$}};
+\draw[ahflow] (c0.east) -- (srv.west);
+\node[ahext] (c1) at (-3.0,0.00) {Line controller\\[-1pt]{\scriptsize $\ll$consumer$\gg$}};
+\draw[ahflow] (c1.east) -- (srv.west);
+\node[ahext] (c2) at (-3.0,-1.20) {Upper WorkflowManager\\[-1pt]{\scriptsize $\ll$consumer$\gg$}};
+\draw[ahflow] (c2.east) -- (srv.west);
+\end{tikzpicture}
+  }
+  \caption{SysML block view of the \texttt{workflowInstance} service: provider and typical consumers.}
+  \label{fig:SD}
+\end{figure}
+
+The following interface operations are available.
+
+{\small
+\begin{longtable}{|p{4.4cm}|p{5.6cm}|p{5.8cm}|}
+
+\hline
+\rowcolor{gray!33} Operation & Input & Output \\ \hline
+\endhead
+\oref{start} & \mref{StartSessionRequest} & \mref{Session} \\ \hline
+\oref{abort} & \mref{SessionRef} & \mref{Session} \\ \hline
+\oref{query} & \mref{SessionFilter} & \mref{SessionList} \\ \hline
+\oref{get-status} & \mref{SessionRef} & \mref{Session} \\ \hline
+\oref{get-trace} & \mref{SessionRef} & \mref{Trace} \\ \hline
+\end{longtable}
+}
+
+\osubsection{start}{StartSessionRequest}{Session}
+Creates a session of an active recipe version (or of the product's recipe), fires the first transitions and dispatches the enabled steps.
+\osubsection{abort}{SessionRef}{Session}
+Aborts a running session (extension x-abort). Its active work items become \texttt{ABORTED} and their executors receive \texttt{workflowExecution.abort}; leases are released when \texttt{workflow.lease.release-on-failure} is set.
+\osubsection{query}{SessionFilter}{SessionList}
+Lists sessions, newest first, optionally in one status.
+\osubsection{get-status}{SessionRef}{Session}
+Returns the markings and status of one session.
+\osubsection{get-trace}{SessionRef}{Trace}
+Returns the run: every transition, $\xi$, $\beta$, $\varepsilon$, and whether the run stayed within the proven model.
+
+\newpage
+\section{Information Model}
+\label{sec:model}
+Here, all data objects that can be part of the \texttt{workflowInstance} service are listed in alphabetic order. Each
+subsection, which describes one type of object, begins with the \textit{struct} keyword (a collection of named fields,
+each with its own data type), the \textit{enum} keyword (a closed set of values) or the \textit{alias} keyword. As a
+complement to the explicitly defined types in this section, there is also a list of implicit primitive types in
+Section~\ref{sec:model:primitives}.
+
+\msubsection{enum}{DispatchMode}
+How a step reaches an executor.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflowExecution.start} (default). \\ \hline
+\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflowWorkItem.claim}. \\ \hline
+\texttt{event} & Reserved for EventHandler notification; currently handled as \texttt{pull}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{Rule}
+Transition rules: the eight rules of~\cite{varga2026} and the extensions (\texttt{x-}).
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{A-Start} & An action becomes active after its predecessor completed. \\ \hline
+\texttt{S-Enable} & A step becomes enabled when its action is active and its predecessors completed. \\ \hline
+\texttt{S-Bind} & An enabled step is bound to a provider (and executor) and becomes running. \\ \hline
+\texttt{S-Done} & A running step completed; its result is stored. \\ \hline
+\texttt{A-Finish} & Every step of an action completed. \\ \hline
+\texttt{Z-Close} & Every action completed: the session is completed. \\ \hline
+\texttt{S-FailBind} & No executor/provider could be bound: the session fails. \\ \hline
+\texttt{S-FailInvoke} & The invocation failed: the session fails. \\ \hline
+\texttt{x-rebind} & Extension: the step is bound again after \texttt{ERROR} or an unreachable executor. \\ \hline
+\texttt{x-abort} & Extension: the session was aborted. \\ \hline
+\texttt{x-timeout} & Extension: a step exceeded its timeout. \\ \hline
+\texttt{x-skip} & Extension: a step was skipped because no guarded transition to it was taken. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Session}
+The state $z = (M, M_A, \beta, \varepsilon, \xi, status)$ of a session, as seen from outside.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{id} & \pref{SessionId} & Session identifier. \\ \hline
+\texttt{recipe} & \pref{Name} & Recipe name. \\ \hline
+\texttt{version} & \pref{Version} & Recipe version. \\ \hline
+\texttt{subject} & \pref{String} & Subject of the session. Optional. \\ \hline
+\texttt{owner} & \pref{SystemName} & The system that started the session; it may abort it. \\ \hline
+\texttt{status} & \mref{SessionStatus} & \texttt{running}, \texttt{completed} or \texttt{failed}. \\ \hline
+\texttt{dispatch} & \mref{DispatchMode} & Effective dispatch mode. \\ \hline
+\texttt{failure} & \pref{String} & Why the session failed. Optional. \\ \hline
+\texttt{extensions} & \pref{List}$<$\pref{String}$>$ & Extensions used (\texttt{x-rebind}, \texttt{x-abort}, \texttt{x-timeout}, \texttt{x-skip}, \ldots); empty when the run stays inside the proven model. \\ \hline
+\texttt{stepMarking} & \pref{Map}$<$\pref{Name}, \pref{String}$>$ & $M$: \texttt{inactive}, \texttt{enabled}, \texttt{running}, \texttt{completed} or \texttt{skipped} per step. \\ \hline
+\texttt{actionMarking} & \pref{Map}$<$\pref{Name}, \pref{String}$>$ & $M_A$: \texttt{inactive}, \texttt{active} or \texttt{completed} per action. \\ \hline
+\texttt{modelTransitions} & \pref{Integer} & Number of model transitions so far. \\ \hline
+\texttt{transitionBound} & \pref{Integer} & Theorem~1 bound $3|S| + 2|A|$. \\ \hline
+\texttt{product} & \pref{SystemName} & Product system, when the session came from one. Optional. \\ \hline
+\texttt{createdAt} & \pref{DateTime} & Start time. \\ \hline
+\texttt{updatedAt} & \pref{DateTime} & Time of the last transition. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{SessionFilter}
+Optional filter of \oref{query}.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{status} & \mref{SessionStatus} & Only sessions in this status. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{SessionList}
+Sessions, newest first.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{entries} & \pref{List}$<$\mref{Session}$>$ & The sessions. \\ \hline
+\texttt{count} & \pref{Integer} & Number of entries. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{SessionRef}
+Identifies a session; \oref{abort} also takes an optional reason.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{id} & \pref{SessionId} & Session identifier. \\ \hline
+\texttt{reason} & \pref{String} & Reason recorded with an abort. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{SessionStatus}
+Status of a session. \texttt{completed} and \texttt{failed} are final.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{running} & Some rule may still apply. \\ \hline
+\texttt{completed} & Z-Close fired: every action completed. \\ \hline
+\texttt{failed} & S-FailBind, S-FailInvoke or an extension (abort, timeout) ended the session. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{StartSessionRequest}
+Starts one session (one execution of one recipe version for one subject).
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{recipe} & \pref{Name} & Recipe name; may be omitted when \texttt{product} is given. Optional. \\ \hline
+\texttt{version} & \pref{Version} & Recipe version; the latest active version when absent. Optional. \\ \hline
+\texttt{subject} & \pref{String} & What the session works on: product unit, control period or batch. Optional. \\ \hline
+\texttt{parameters} & \pref{JsonObject} & Session parameters $\rho$; required parameters must be present. Optional. \\ \hline
+\texttt{dispatch} & \mref{DispatchMode} & Overrides the recipe's dispatch mode. Optional. \\ \hline
+\texttt{product} & \pref{SystemName} & A product system providing \texttt{workflowProduct}: the recipe and parameters are retrieved from it, and the results are stored back at Z-Close. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Trace}
+The run of a session: the transitions and the data the rules produced.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{sessionId} & \pref{SessionId} & Session identifier. \\ \hline
+\texttt{status} & \mref{SessionStatus} & Current status. \\ \hline
+\texttt{trace} & \pref{List}$<$\mref{Transition}$>$ & Transitions in order. \\ \hline
+\texttt{results} & \pref{Map}$<$\pref{Name}, \pref{JsonValue}$>$ & $\xi$: stored step results. \\ \hline
+\texttt{bindings} & \pref{Map}$<$\pref{Name}, \pref{JsonValue}$>$ & $\beta$: orchestration result per bound step. \\ \hline
+\texttt{executorAssignment} & \pref{Map}$<$\pref{Name}, \pref{SystemName}$>$ & $\varepsilon$: executor per step. \\ \hline
+\texttt{runner} & \pref{Map}$<$\pref{Name}, \pref{SystemName}$>$ & The system that ran each step. \\ \hline
+\texttt{modelTransitions} & \pref{Integer} & Transitions of the proven rule set. \\ \hline
+\texttt{transitionBound} & \pref{Integer} & Theorem~1 bound. \\ \hline
+\texttt{withinModel} & \pref{Boolean} & True when no extension was used, so Theorems~1--2 apply. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Transition}
+One transition of the session.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{seq} & \pref{Integer} & Sequence number from 1. \\ \hline
+\texttt{rule} & \mref{Rule} & The rule that fired. \\ \hline
+\texttt{target} & \pref{Name} & The step or action it applied to. Optional. \\ \hline
+\texttt{detail} & \pref{String} & Additional information, e.g. the executor or failure. Optional. \\ \hline
+\texttt{at} & \pref{DateTime} & When it fired. \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Primitives}
+\label{sec:model:primitives}
+Types and structures mentioned throughout this document that are assumed to be available to implementations of this
+service. The concrete interpretation of each of these types must be provided by any IDD document claiming to implement
+this service.
+
+{\small
+\begin{longtable}{|p{3.2cm}|p{12.6cm}|}
+
+\hline
+\rowcolor{gray!33} Type & Description \\ \hline
+\endhead
+\pdef{Boolean} & One out of \texttt{true} or \texttt{false}. \\ \hline
+\pdef{DateTime} & Pinpoints a moment in time (UTC). \\ \hline
+\pdef{Integer} & A whole number. \\ \hline
+\pdef{JsonObject} & A set of named values. \\ \hline
+\pdef{JsonValue} & Any value: object, array, string, number, Boolean or null. \\ \hline
+\pdef{List} & An ordered collection of items of the type given in angle brackets. \\ \hline
+\pdef{Map} & A collection of key/value pairs of the types given in angle brackets. \\ \hline
+\pdef{Name} & An identifier of a recipe, action, step, parameter or resource: a letter followed by at most 62 letters, digits, \texttt{-} or \texttt{\_}. \\ \hline
+\pdef{SessionId} & The identifier the WorkflowManager gives a session. \\ \hline
+\pdef{String} & A chain of characters. \\ \hline
+\pdef{SystemName} & The name of an Arrowhead system as it appears in its certificate and in the ServiceRegistry. \\ \hline
+\pdef{Version} & A recipe version in the form MAJOR.MINOR.PATCH. \\ \hline
+\end{longtable}
+}
+
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-23 & \arrowversion & Initial edition: service description of workflowInstance, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}

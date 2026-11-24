@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:arrowhead:workflow:recipe:0.1",
+  "title": "Arrowhead Workflow Recipe (proposal 0.1)",
+  "description": "Canonical, language-neutral recipe format shared by the Java, Go and Rust WorkflowManager/WorkflowExecutor. Structure follows Varga's formal Recipe (Actions, next_A, Steps, next_alpha, dep) plus Arrowhead Choreographer policy fields. Structural rules that JSON Schema cannot express (acyclicity, reachability, dep only to earlier Steps, next within the Action) are enforced by the Validator.",
+  "type": "object",
+  "required": [
+    "name",
+    "version",
+    "firstAction",
+    "actions"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "$ref": "#/$defs/identifier"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "description": {
+      "type": "string"
+    },
+    "firstAction": {
+      "$ref": "#/$defs/identifier"
+    },
+    "parameters": {
+      "description": "Session parameters rho that workflowInstance.start must bind.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "$ref": "#/$defs/identifier"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "number",
+              "integer",
+              "boolean",
+              "object"
+            ]
+          },
+          "required": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    },
+    "resources": {
+      "description": "Shared resources R that need a lease.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "leaseDurationSeconds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "$ref": "#/$defs/identifier"
+          },
+          "leaseDurationSeconds": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "provider": {
+            "description": "Service definition of an external lease provider; default is the WorkflowManager workflowLease service.",
+            "type": "string"
+          }
+        }
+      }
+    },
+    "dispatch": {
+      "$ref": "#/$defs/dispatch"
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,62}$"
+    },
+    "dispatch": {
+      "enum": [
+        "push",
+        "pull",
+        "event"
+      ],
+      "default": "push"
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "name",
+        "steps"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/identifier"
+        },
+        "next": {
+          "description": "next_A; omitted or null for the last Action.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/identifier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workCentre": {
+          "description": "Optional work centre that owns this Action (federated delegation).",
+          "type": "string"
+        },
+        "dispatch": {
+          "$ref": "#/$defs/dispatch"
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/step"
+          }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "required": [
+        "name",
+        "service"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/identifier"
+        },
+        "service": {
+          "$ref": "#/$defs/serviceRequirement"
+        },
+        "next": {
+          "description": "next_alpha successors inside the same Action.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "guards": {
+          "description": "Extension x-guard (outside the proven model): condition per successor in next. The transition s -> s' is taken when s is completed and the condition holds over the session parameters and results; a step whose incoming transitions are all dead is skipped (x-skip). Grammar: comparisons (== != < <= > >=), && || ! and parentheses over ${param.<name>.<path>}, ${result.<step>.<path>}, numbers, quoted strings, true, false, null. A condition may read only results of s or of steps that precede s.",
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/identifier"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "dep": {
+          "description": "Data dependency dep(s), separate from the control dependency next. Well-formedness (W4): every entry must precede s (transitive predecessor in the same Action, or any Step of an earlier Action).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/identifier"
+          },
+          "uniqueItems": true,
+          "default": []
+        },
+        "executor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "capability": {
+              "type": "string"
+            },
+            "workstation": {
+              "type": "string"
+            },
+            "system": {
+              "type": "string"
+            }
+          },
+          "description": "eta(s): optional executor capability. Omitted means the WorkflowManager itself is the consumer (c_z(s) = CH_i)."
+        },
+        "params": {
+          "description": "Static parameters passed to the executor.",
+          "type": "object"
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "quantity": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            },
+            "timeoutSeconds": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "nominalDurationSeconds": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            "retry": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "maxAttempts": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "default": 1
+                },
+                "onError": {
+                  "description": "rebind: exclude the executor and dispatch to another; retry: same executor again after backoffSeconds (transient provider-side failures; the provider must accept repeated calls); abort: fail at once.",
+                  "enum": [
+                    "rebind",
+                    "retry",
+                    "abort"
+                  ],
+                  "default": "rebind"
+                },
+                "backoffSeconds": {
+                  "description": "Pause before a same-executor retry (onError = retry). Default 1.",
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 600
+                }
+              }
+            },
+            "lease": {
+              "type": "object",
+              "required": [
+                "resource",
+                "mode"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "resource": {
+                  "$ref": "#/$defs/identifier"
+                },
+                "mode": {
+                  "description": "reserve | use (renew before each physical use) | release",
+                  "enum": [
+                    "reserve",
+                    "use",
+                    "release"
+                  ]
+                }
+              }
+            },
+            "localCloudOnly": {
+              "type": "boolean",
+              "default": true
+            }
+          },
+          "description": "Extensions OUTSIDE the proven Sensors-2026 model (retry, timeout, quantity > 1, lease). Sessions that use them are not covered by Theorems 1-2."
+        },
+        "input": {
+          "description": "kappa_s: input-composition template over session parameters and results of dep(s), referring to results by step name. If present, dep is inferred from it.",
+          "type": "object"
+        }
+      }
+    },
+    "serviceRequirement": {
+      "type": "object",
+      "required": [
+        "serviceDefinition"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "serviceDefinition": {
+          "type": "string"
+        },
+        "interfaces": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "minVersion": {
+          "type": "string"
+        },
+        "maxVersion": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "requiresResults": {
+          "description": "Results the service input needs; checked against dep (Varga V9).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "qos": {
+          "description": "q(s): QoS requirements forwarded to the orchestrator.",
+          "type": "object"
+        }
+      }
+    }
+  }
+}

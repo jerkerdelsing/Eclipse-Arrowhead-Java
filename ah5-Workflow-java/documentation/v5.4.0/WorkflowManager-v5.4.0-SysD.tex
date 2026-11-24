@@ -1,0 +1,332 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+%% Special references
+\newcommand{\fref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:functions:#1]{#1}}}}
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\sref}[1]{{\textcolor{ArrowheadPurple}{#1}}}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{WorkflowManager}
+
+\ArrowheadType{System Description}
+\ArrowheadTypeShort{SysD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-23}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the WorkflowManager, an Eclipse Arrowhead support system that keeps the books of workflows: it holds recipes and sessions, validates recipes, advances sessions with the transition rules of the formal model, dispatches steps to WorkflowExecutors and reports to the product. Documentation edition 5.4.0; system version 5.4.0 (framework), service versions 1.0.0.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+The WorkflowManager (WfM) is the book-keeper of the Eclipse Arrowhead workflow support systems. It
+stores workflow \emph{recipes} (which services are consumed, in which order and under which conditions), runs
+\emph{sessions} of them for products, control periods or batches, and keeps the session state of the formal execution
+model~\cite{varga2026}. It never invokes equipment itself: each enabled step is handed to a WorkflowExecutor, which has
+the provider orchestrated for itself and reports back. The WorkflowManager is generic, one instance per work-centre
+local cloud, configured only by its workstation identifier.
+
+\begin{figure}[ht!]
+  \centering
+  \resizebox{\textwidth}{!}{
+\begin{tikzpicture}[node distance=4mm]
+\node[ahsys,minimum height=5.25cm,minimum width=3.6cm] (sys) at (0,0) {WorkflowManager\\[-1pt]{\normalfont\scriptsize $\ll$system$\gg$}};
+\node[ahsrv,anchor=west] (p0) at (3.4,2.25) {workflowRecipe};
+\draw[thick,ArrowheadPurple] (1.8,2.25) -- (p0.west);
+\fill[ArrowheadPurple] (1.8,2.25) circle (1.4pt);
+\node[ahsrv,anchor=west] (p1) at (3.4,1.50) {workflowInstance};
+\draw[thick,ArrowheadPurple] (1.8,1.50) -- (p1.west);
+\fill[ArrowheadPurple] (1.8,1.50) circle (1.4pt);
+\node[ahsrv,anchor=west] (p2) at (3.4,0.75) {workflowWorkItem};
+\draw[thick,ArrowheadPurple] (1.8,0.75) -- (p2.west);
+\fill[ArrowheadPurple] (1.8,0.75) circle (1.4pt);
+\node[ahsrv,anchor=west] (p3) at (3.4,0.00) {workflowContext};
+\draw[thick,ArrowheadPurple] (1.8,0.00) -- (p3.west);
+\fill[ArrowheadPurple] (1.8,0.00) circle (1.4pt);
+\node[ahsrv,anchor=west] (p4) at (3.4,-0.75) {workflowLease};
+\draw[thick,ArrowheadPurple] (1.8,-0.75) -- (p4.west);
+\fill[ArrowheadPurple] (1.8,-0.75) circle (1.4pt);
+\node[ahsrv,anchor=west] (p5) at (3.4,-1.50) {workflowManagement};
+\draw[thick,ArrowheadPurple] (1.8,-1.50) -- (p5.west);
+\fill[ArrowheadPurple] (1.8,-1.50) circle (1.4pt);
+\node[ahsrv,anchor=west] (p6) at (3.4,-2.25) {generalManagement};
+\draw[thick,ArrowheadPurple] (1.8,-2.25) -- (p6.west);
+\fill[ArrowheadPurple] (1.8,-2.25) circle (1.4pt);
+\node[ahcsm,anchor=east] (c0) at (-3.4,2.25) {serviceDiscovery\\[-2pt]{\tiny\rmfamily ServiceRegistry}};
+\draw[thick,ArrowheadTeal,-{Stealth[length=1.6mm]}] (c0.east) -- (-1.8,2.25);
+\node[ahcsm,anchor=east] (c1) at (-3.4,1.50) {identity\\[-2pt]{\tiny\rmfamily Authentication}};
+\draw[thick,ArrowheadTeal,-{Stealth[length=1.6mm]}] (c1.east) -- (-1.8,1.50);
+\node[ahcsm,anchor=east] (c2) at (-3.4,0.75) {authorization\\[-2pt]{\tiny\rmfamily ConsumerAuthorization}};
+\draw[thick,ArrowheadTeal,-{Stealth[length=1.6mm]}] (c2.east) -- (-1.8,0.75);
+\node[ahcsm,anchor=east] (c3) at (-3.4,0.00) {workflowExecution\\[-2pt]{\tiny\rmfamily WorkflowExecutor}};
+\draw[thick,ArrowheadTeal,-{Stealth[length=1.6mm]}] (c3.east) -- (-1.8,0.00);
+\node[ahcsm,anchor=east] (c4) at (-3.4,-0.75) {workflowProduct\\[-2pt]{\tiny\rmfamily Intelligent Product}};
+\draw[thick,ArrowheadTeal,-{Stealth[length=1.6mm]}] (c4.east) -- (-1.8,-0.75);
+\node[ahcsm,anchor=east] (c5) at (-3.4,-1.50) {sysMonitor (AMQP)\\[-2pt]{\tiny\rmfamily SysMonitor broker}};
+\draw[thick,ArrowheadTeal,-{Stealth[length=1.6mm]}] (c5.east) -- (-1.8,-1.50);
+\node[font=\scriptsize\bfseries,ArrowheadPurple] at (5.0,3.15) {produced};
+\node[font=\scriptsize\bfseries,ArrowheadTeal] at (-5.0,3.15) {consumed};
+\end{tikzpicture}
+  }
+  \caption{SysML block view of the WorkflowManager: produced services (right) and consumed services with their providers (left).}
+  \label{fig:block}
+\end{figure}
+
+The rest of this document is organized as follows.
+In Section~\ref{sec:prior_art}, we reference major prior art capabilities of the system.
+In Section~\ref{sec:use}, we describe the intended usage of the system.
+In Section~\ref{sec:properties}, we describe fundamental properties provided by the system.
+In Section~\ref{sec:delimitations}, we describe delimitations of capabilities of the system.
+In Section~\ref{sec:services}, we describe the abstract service functions consumed or produced by the system.
+In Section~\ref{sec:security}, we describe the security capabilities of the system.
+
+\newpage
+\subsection{Significant Prior Art}
+\label{sec:prior_art}
+Derhamy's Workflow Manager, a stateless book-keeper and blackboard that can be cloned per work
+centre~\cite{derhamy2018,derhamy2018workflow}; Garcia Represa's workflow management system and the coexistence of
+orchestration-style and choreography-style workflow management in one SoS~\cite{represa2022}; Varga's formal recipe
+and session model with its transition rules and proven guarantees~\cite{varga2026}; and the Arrowhead Choreographer,
+whose plans the WorkflowManager can compile recipes to.
+
+\subsection{How This System Is Meant to Be Used}
+\label{sec:use}
+\begin{enumerate}
+\item An engineer designs a workflow in the WorkflowConfigurator, which validates and registers it through
+\texttt{workflowRecipe}.
+\item A product, line controller or upper WorkflowManager starts a session through \texttt{workflowInstance}, either
+naming the recipe or naming a product system that provides the recipe through \texttt{workflowProduct}.
+\item The WorkflowManager enables steps, selects executors by their declared capabilities (push) or publishes work
+items to be claimed (pull), and records bindings, results and failures from the executors' reports.
+\item When every action has completed (Z-Close) it stores the results back at the product; the owner can read the full
+trace at any time.
+\end{enumerate}
+
+\subsection{System functionalities and properties}
+\label{sec:properties}
+\subsubsection{Functional properties of the system}
+\begin{itemize}
+\item Recipe catalogue: validation (structure W1--W4, data flow, leases, guards, catalogue checks), immutable storage by
+name and version, retirement, compilation to Choreographer plans.
+\item Session engine: the session state $z = (M, M_A, \beta, \varepsilon, \xi, status)$ and the eight transition rules
+A-Start, S-Enable, S-Bind, S-Done, A-Finish, Z-Close, S-FailBind and S-FailInvoke, with the Theorem~1 transition count.
+\item Extensions, flagged per session: x-rebind (retry on ERROR or an unreachable executor), x-abort, x-timeout,
+compensation (lease release on failure), x-guard/x-skip (guarded transitions with dead-path elimination).
+\item Dispatch: push (executor selection by $\eta(s)$ and $\theta(s)$, least loaded, next executor after BIND\_FAILED),
+pull (atomic claim, holder-only reports, claim timeout); \texttt{event} is accepted and handled as pull.
+\item Session context ($\rho$, $\xi|dep(s)$) for executors; FIFO leases with renewal and expiry for shared resources.
+\item Product integration (retrieve recipe at start, store results at Z-Close) and an audit worklog.
+\end{itemize}
+
+\subsubsection{Configuration of system properties}
+The system is configured with Spring properties; the main ones are listed in the SysDD. The workflow-specific behaviour
+is configured under the prefix \texttt{workflow.}; the security profile (TLS, authentication, authorization) is the
+common Arrowhead~5 profile.
+
+\subsubsection{Data stored by the system}
+The WorkflowManager owns the database schema \texttt{ah\_workflow}: \texttt{recipe} (immutable canonical JSON per
+version and its status), \texttt{workflow\_session} (the JSON snapshot of $z$ with its trace and an optimistic
+\texttt{revision}), \texttt{work\_item} (one row per step attempt), \texttt{lease}, \texttt{worklog} and \texttt{logs}.
+Storing $z$ as one snapshot keeps the stored state identical to the model object and lets sessions resume after a
+restart.
+
+\subsubsection{Non functional properties}
+\begin{itemize}
+\item \emph{Security:} see Section~\ref{sec:security}.
+\item \emph{Safety and liveness:} for well-formed recipes without extensions every run takes at most $3|S| + 2|A|$
+transitions and always progresses (Theorems~1--2 of~\cite{varga2026}); failure is absorbing. Exclusive tool use is
+proved under assumption (A1) and holds for the lease variant only under an additional, validated configuration
+assumption.
+\item \emph{Latency:} one transition is a database update of the session snapshot; dispatch happens asynchronously on a
+worker pool (\texttt{workflow.worker.threads}, default 8).
+\item \emph{Energy and power saving:} no specific properties; the system is idle between requests except for the
+claim/timeout watchdog.
+\end{itemize}
+
+\subsubsection{Stateful or stateless}
+Stateful. Recipes, sessions (state $z$, trace), work items, leases and the worklog are persisted, so a
+WorkflowManager restart resumes running sessions. Executors keep no durable state.
+
+\subsection{Important Delimitations}
+\label{sec:delimitations}
+\begin{itemize}
+\item No planning or scheduling (PlantDescriptionEngine or ERP), no quality policy authoring, no equipment services.
+\item One local cloud: delegating actions to WorkflowManagers in other clouds through Gatekeeper/GateTunnel and the
+disconnected working copy are designed but not implemented.
+\item EventHandler notifications (\texttt{event} dispatch and workflow events) are not implemented.
+\item Recovery beyond the listed extensions (compensation of arbitrary steps, \texttt{quantity} $>$ 1) is not provided;
+the theorems do not cover sessions that use extensions.
+\item The \texttt{workflowProduct} side is implemented as a consumer only; no product system exists yet.
+\end{itemize}
+
+\newpage
+\section{Services}
+\label{sec:services}
+This section lists the produced and consumed services. Each produced service is specified by an SD and an HTTP/TLS/JSON
+IDD in this documentation set.
+
+\subsection{Produced services}
+
+{\small
+\begin{longtable}{|p{3.8cm}|p{6.2cm}|p{5.8cm}|}
+
+\hline
+\rowcolor{gray!33} Service & Operations & Documents \\ \hline
+\endhead
+\texttt{workflowRecipe} & validate, register, query, get, retire, compile & \texttt{WorkflowManager-v5.4.0-workflowRecipe-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflowInstance} & start, abort, query, get-status, get-trace & \texttt{WorkflowManager-v5.4.0-workflowInstance-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflowWorkItem} & claim, report & \texttt{WorkflowManager-v5.4.0-workflowWorkItem-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflowContext} & get-parameters, get-results, put-result & \texttt{WorkflowManager-v5.4.0-workflowContext-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflowLease} & reserve, poll, renew, release & \texttt{WorkflowManager-v5.4.0-workflowLease-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflowManagement} & query-worklog, query-executors, query-work-items & \texttt{WorkflowManager-v5.4.0-workflowManagement-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{generalManagement} & get-log, get-config & \texttt{Workflow-v5.4.0-generalManagement-SD}, \texttt{-HTTP-IDD} \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Consumed services}
+All three workflow systems use the core systems the same way: at start-up they log in at the Authentication
+system (\texttt{identity}) and register their services in the ServiceRegistry (\texttt{serviceDiscovery.register});
+on every incoming request they verify the caller's identity token (\texttt{identity.identity-verify}) and, with
+\texttt{service.authorization.enabled}, the caller's grant (\texttt{authorization.verify} of ConsumerAuthorization);
+at shutdown they revoke their services and log out.
+
+{\small
+\begin{longtable}{|p{3.4cm}|p{3.2cm}|p{3.6cm}|p{5.6cm}|}
+
+\hline
+\rowcolor{gray!33} Service & Provider & Operations & Purpose \\ \hline
+\endhead
+\texttt{serviceDiscovery} & ServiceRegistry & register, revoke, lookup & Registration; discovery of executors (\texttt{workflowExecution} with its metadata) and the catalogue check C01. \\ \hline
+\texttt{identity} & Authentication & login, logout, identity-verify & Own identity token; verification of callers. \\ \hline
+\texttt{authorization} & ConsumerAuthorization & verify & Provider-side authorization of every service operation. \\ \hline
+\texttt{workflowExecution} & WorkflowExecutor & start, abort & Push dispatch and abort of work items. \\ \hline
+\texttt{workflowProduct} & Intelligent Product & retrieve-process-step, store-process-step-result & Product-driven sessions. Contract: \texttt{Workflow-v5.4.0-workflowProduct-SD}. \\ \hline
+\texttt{sysMonitor (AMQP)} & SysMonitor broker & publish & Health and metrics when \texttt{sysmonitor.enabled}. \\ \hline
+\end{longtable}
+}
+
+
+\newpage
+\section{Security}
+\label{sec:security}
+The WorkflowManager runs in Arrowhead secure mode in every cloud deployment; an insecure mode exists only for development and
+unit tests. It handles only Arrowhead-compliant X.509 certificates of its local cloud; others are refused during the
+TLS handshake.
+
+\subsection{Security model}
+\begin{itemize}
+\item \textbf{Secure mode only in deployment.} The deployment configuration (\texttt{deployment/*.properties}) enables
+TLS with client authentication (\texttt{server.ssl.client-auth=need}, TLS 1.3 and 1.2), outsourced authentication with
+identity tokens bound to the client certificate, interface policy \texttt{CERT\_AUTH} and the CRL check. The packaged
+defaults without TLS exist for development and unit tests (\texttt{workflow.standalone}) and must not be used in a
+cloud.
+\item \textbf{Certificates.} The system has an Arrowhead system certificate
+\texttt{<System>.<cloud>.<organisation>.arrowhead.eu} issued by the local cloud CA, kept in a PKCS\#12 key store; the
+trust store holds the cloud CA. Non-Arrowhead certificates are refused at the TLS layer.
+\item \textbf{Provider-side authorization.} Every operation of the registered services (other than management) is
+checked against ConsumerAuthorization (\texttt{authorization.verify}) for the calling system, the service definition
+and the operation (route tables \texttt{ServiceOperations} and \texttt{ConfiguratorOperations}). A missing grant gives
+403.
+\item \textbf{Management.} \texttt{generalManagement} and \texttt{workflowManagement} are protected by
+\texttt{management.policy=sysop-only}.
+\item \textbf{Data protection.} All service traffic is encrypted by TLS. The WorkflowManager's database connection uses
+TLS with server certificate verification (\texttt{sslMode=verify-full}). Secrets (store, identity and database
+passwords, the console password hash) come from container secrets (\texttt{configtree:/run/secrets/}), not from the
+image.
+\end{itemize}
+
+
+\subsection{Object-level checks}
+In addition to ConsumerAuthorization the WorkflowManager protects itself (first-person perspective): only the holder of
+a work item may report on it or read and write its context; only the owner of a session or a sysop may abort it.
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-23 & \arrowversion & Initial edition: system description of the WorkflowManager, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}

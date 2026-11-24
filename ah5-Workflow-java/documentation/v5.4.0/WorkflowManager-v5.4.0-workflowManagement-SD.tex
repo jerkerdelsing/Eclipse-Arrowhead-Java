@@ -1,0 +1,383 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+%% Special references
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\oref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:operations:#1]{#1}}}}
+\newcommand{\pdef}[1]{{\textcolor{ArrowheadGrey}{#1\label{sec:model:primitives:#1}\label{sec:model:primitives:#1s}\label{sec:model:primitives:#1es}}}}
+\newcommand{\pref}[1]{{\textcolor{ArrowheadGrey}{\hyperref[sec:model:primitives:#1]{#1}}}}
+
+\newrobustcmd\osubsection[3]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}operation \textcolor{ArrowheadBlue}{#1}}
+  \subsection*{
+    \thesubsection\quad
+    operation
+    \textcolor{ArrowheadBlue}{#1}
+    (\notblank{#2}{\mref{#2}}{})
+    \notblank{#3}{: \mref{#3}}{}
+  }
+  \label{sec:operations:#1}
+}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2} \label{sec:model:#2s} \label{sec:model:#2es}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{workflowManagement}
+\ArrowheadServiceID{workflowManagement}
+\ArrowheadType{Service Description}
+\ArrowheadTypeShort{SD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-23}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  \Large{Service ID: \textit{``\arrowid''}}
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the \texttt{workflowManagement} service of the Eclipse Arrowhead workflow support systems, which gives operators the worklog, the known executors and the work items. It is provided by the WorkflowManager system, service version 1.0.0, documentation edition 5.4.0.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+The \texttt{workflowManagement} service is the operator view of a WorkflowManager: the audit worklog
+of sessions and steps, the executors the WorkflowManager can dispatch to (with their declared capabilities), and the
+work items with their states.
+
+The rest of this document is organized as follows.
+In Section~\ref{sec:operations}, we describe the abstract message operations provided by the service.
+In Section~\ref{sec:model}, we end the document by presenting the data types used by the mentioned operations.
+
+\subsection{Significant Prior Art}
+The management services of the Arrowhead~5 support systems, e.g. the Choreographer's worklog.
+
+\subsection{How This Service Is Meant to Be Used}
+An operator or a management tool queries the worklog of one session to see why it failed, lists the
+executors to check which capabilities are available, and lists the work items of a session to see which executor ran
+what.
+
+\subsection{Important Delimitations and Dependencies}
+\label{sec:delimitations}
+\begin{itemize}
+\item Read-only; recipes are managed through \texttt{workflowRecipe}, sessions through \texttt{workflowInstance}.
+\item Protected by the management policy of the system (\texttt{management.policy=sysop-only} in the secure deployment), not by ConsumerAuthorization.
+\end{itemize}
+
+\paragraph{Authorization.} Sysop only (management policy); a ConsumerAuthorization grant is not sufficient.
+
+\newpage
+\section{Service Interface}
+\label{sec:operations}
+This section describes the interface of the \texttt{workflowManagement} service. Each subsection names an abstract operation,
+an input type and an output type, in that order. The input type is named inside parentheses, while the output type is
+preceded by a colon. Input and output types are only denoted when accepted or returned, respectively, by the operation
+in question. All abstract data types named in this section are defined in Section~\ref{sec:model}. The concrete
+interface (HTTP/TLS/JSON) is specified in the IDD of the same name.
+
+\begin{figure}[ht!]
+  \centering
+  \resizebox{0.92\textwidth}{!}{
+\begin{tikzpicture}
+\node[ahsys] (prov) at (4.6,0) {WorkflowManager\\[-1pt]{\normalfont\scriptsize $\ll$provider$\gg$}};
+\node[ahsrv] (srv) at (1.6,0) {workflowManagement};
+\draw[thick,ArrowheadPurple] (srv.east) -- (prov.west);
+\node[ahext] (c0) at (-3.0,0.60) {Sysop\\[-1pt]{\scriptsize $\ll$consumer$\gg$}};
+\draw[ahflow] (c0.east) -- (srv.west);
+\node[ahext] (c1) at (-3.0,-0.60) {Management tool\\[-1pt]{\scriptsize $\ll$consumer$\gg$}};
+\draw[ahflow] (c1.east) -- (srv.west);
+\end{tikzpicture}
+  }
+  \caption{SysML block view of the \texttt{workflowManagement} service: provider and typical consumers.}
+  \label{fig:SD}
+\end{figure}
+
+The following interface operations are available.
+
+{\small
+\begin{longtable}{|p{4.4cm}|p{5.6cm}|p{5.8cm}|}
+
+\hline
+\rowcolor{gray!33} Operation & Input & Output \\ \hline
+\endhead
+\oref{query-worklog} & \mref{WorklogFilter} & \mref{WorklogList} \\ \hline
+\oref{query-executors} & -- & \mref{ExecutorList} \\ \hline
+\oref{query-work-items} & \mref{WorklogFilter} & \mref{WorkItemList} \\ \hline
+\end{longtable}
+}
+
+\osubsection{query-worklog}{WorklogFilter}{WorklogList}
+Returns worklog entries, optionally of one session.
+\osubsection{query-executors}{}{ExecutorList}
+Returns the executor set $WE$ with $cap(w)$: the providers of \texttt{workflowExecution} in the ServiceRegistry plus statically configured executors.
+\osubsection{query-work-items}{WorklogFilter}{WorkItemList}
+Returns work items, optionally of one session.
+
+\newpage
+\section{Information Model}
+\label{sec:model}
+Here, all data objects that can be part of the \texttt{workflowManagement} service are listed in alphabetic order. Each
+subsection, which describes one type of object, begins with the \textit{struct} keyword (a collection of named fields,
+each with its own data type), the \textit{enum} keyword (a closed set of values) or the \textit{alias} keyword. As a
+complement to the explicitly defined types in this section, there is also a list of implicit primitive types in
+Section~\ref{sec:model:primitives}.
+
+\msubsection{enum}{DispatchMode}
+How a step reaches an executor.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflowExecution.start} (default). \\ \hline
+\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflowWorkItem.claim}. \\ \hline
+\texttt{event} & Reserved for EventHandler notification; currently handled as \texttt{pull}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ExecutorEndpoint}
+An executor $w \in WE$ with $cap(w)$.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{SystemName} & Executor. \\ \hline
+\texttt{scheme} & \pref{String} & \texttt{https} or \texttt{http}. \\ \hline
+\texttt{address} & \pref{String} & Address. \\ \hline
+\texttt{port} & \pref{Integer} & Port. \\ \hline
+\texttt{basePath} & \pref{String} & Base path of \texttt{workflowExecution}. \\ \hline
+\texttt{capabilities} & \pref{List}$<$\pref{String}$>$ & Capabilities. \\ \hline
+\texttt{services} & \pref{List}$<$\pref{ServiceDefinition}$>$ & Runnable services. \\ \hline
+\texttt{workstation} & \pref{String} & Workstation. Optional. \\ \hline
+\texttt{mode} & \mref{DispatchMode} & Mode. \\ \hline
+\texttt{source} & \pref{String} & \texttt{registry} or \texttt{static}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ExecutorList}
+Executors known to the WorkflowManager.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{entries} & \pref{List}$<$\mref{ExecutorEndpoint}$>$ & Executors. \\ \hline
+\texttt{count} & \pref{Integer} & Number of entries. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{WorkItemList}
+Work items.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{entries} & \pref{List}$<$\mref{WorkItemRecord}$>$ & Work items. \\ \hline
+\texttt{count} & \pref{Integer} & Number of entries. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{WorkItemRecord}
+Book-keeping of one work item.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{workItemId} & \pref{WorkItemId} & Identifier. \\ \hline
+\texttt{sessionId} & \pref{SessionId} & Session. \\ \hline
+\texttt{action} & \pref{Name} & Action. \\ \hline
+\texttt{step} & \pref{Name} & Step. \\ \hline
+\texttt{executor} & \pref{SystemName} & Assigned or claiming executor. Optional. \\ \hline
+\texttt{attempt} & \pref{Integer} & Attempt. \\ \hline
+\texttt{state} & \mref{WorkItemState} & State. \\ \hline
+\texttt{message} & \pref{String} & Last message. Optional. \\ \hline
+\texttt{createdAt} & \pref{DateTime} & Created. \\ \hline
+\texttt{updatedAt} & \pref{DateTime} & Updated. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{WorkItemState}
+State of a work item at the WorkflowManager.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{OPEN} & Published for claiming (pull). \\ \hline
+\texttt{DISPATCHED} & Sent to an executor (push). \\ \hline
+\texttt{CLAIMED} & Claimed by an executor (pull). \\ \hline
+\texttt{BOUND} & The executor reported a provider. \\ \hline
+\texttt{DONE} & Completed. \\ \hline
+\texttt{FAILED} & Failed. \\ \hline
+\texttt{ABORTED} & Aborted. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{WorklogEntry}
+One audit entry of the WorkflowManager.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{id} & \pref{Integer} & Identifier. \\ \hline
+\texttt{createdAt} & \pref{DateTime} & Time. \\ \hline
+\texttt{sessionId} & \pref{SessionId} & Session, if any. Optional. \\ \hline
+\texttt{recipe} & \pref{String} & Recipe, if any. Optional. \\ \hline
+\texttt{step} & \pref{Name} & Step, if any. Optional. \\ \hline
+\texttt{message} & \pref{String} & Event. \\ \hline
+\texttt{detail} & \pref{String} & Detail. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{WorklogFilter}
+Optional filter.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{sessionId} & \pref{SessionId} & Only entries/items of this session. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{WorklogList}
+Worklog entries.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{entries} & \pref{List}$<$\mref{WorklogEntry}$>$ & Entries. \\ \hline
+\texttt{count} & \pref{Integer} & Number of entries. \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Primitives}
+\label{sec:model:primitives}
+Types and structures mentioned throughout this document that are assumed to be available to implementations of this
+service. The concrete interpretation of each of these types must be provided by any IDD document claiming to implement
+this service.
+
+{\small
+\begin{longtable}{|p{3.2cm}|p{12.6cm}|}
+
+\hline
+\rowcolor{gray!33} Type & Description \\ \hline
+\endhead
+\pdef{DateTime} & Pinpoints a moment in time (UTC). \\ \hline
+\pdef{Integer} & A whole number. \\ \hline
+\pdef{List} & An ordered collection of items of the type given in angle brackets. \\ \hline
+\pdef{Name} & An identifier of a recipe, action, step, parameter or resource: a letter followed by at most 62 letters, digits, \texttt{-} or \texttt{\_}. \\ \hline
+\pdef{ServiceDefinition} & The name of an Arrowhead service definition. Names are compared case-insensitively and without \texttt{-}, \texttt{\_} and spaces, so \texttt{temperature-read} and \texttt{temperatureRead} denote the same service. \\ \hline
+\pdef{SessionId} & The identifier the WorkflowManager gives a session. \\ \hline
+\pdef{String} & A chain of characters. \\ \hline
+\pdef{SystemName} & The name of an Arrowhead system as it appears in its certificate and in the ServiceRegistry. \\ \hline
+\pdef{WorkItemId} & The identifier of one attempt to run one step of one session. \\ \hline
+\end{longtable}
+}
+
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-23 & \arrowversion & Initial edition: service description of workflowManagement, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}

@@ -1,0 +1,558 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+%% Special references
+\newcommand{\fref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:functions:#1]{#1}}}}
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\sref}[1]{{\textcolor{ArrowheadPurple}{#1}}}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{Arrowhead Workflow SoS}
+
+\ArrowheadType{System of Systems Design Description (white box)}
+\ArrowheadTypeShort{SoSDD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-23}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the design of the Arrowhead Workflow System of Systems: its constituent systems, the services between them, the recipe and execution model they implement, the interaction sequences, deployment, security realisation, implementation status and verification. The black-box view is given in the SoSD. Documentation edition 5.4.0.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+The Workflow SoS consists of three Arrowhead support systems that run in a local cloud next to its core systems:
+\begin{itemize}
+\item the \textbf{WorkflowManager} (WfM), which keeps the books: recipes, sessions and their state;
+\item one or more \textbf{WorkflowExecutors} (WfE), which initiate the work: they bind and invoke the providers of steps;
+\item the \textbf{WorkflowConfigurator} (WfC), with which workflows are designed and stored.
+\end{itemize}
+The design follows the separation of concerns \emph{Plant Description plans, the Workflow Manager sequences, Orchestration
+realises}~\cite{derhamy2018}: the WorkflowManager never invokes equipment, the executors never store recipes, and service
+binding, authorization and QoS remain with the core systems.
+
+\begin{figure}[ht!]
+  \centering
+  \resizebox{\textwidth}{!}{
+\begin{tikzpicture}
+\node[draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!3,rounded corners=4pt,minimum width=12.4cm,minimum height=9.6cm] (lc) at (0,-0.4) {};
+\node[font=\bfseries\small,ArrowheadBlue,anchor=north west] at (-6.0,4.3) {Workstation local cloud};
+\node[ahsys] (wfc) at (-3.8,2.6) {WorkflowConfigurator\\[-1pt]{\scriptsize\normalfont :8484, console :8485}};
+\node[ahsys] (wfm) at (2.2,2.6) {WorkflowManager\\[-1pt]{\scriptsize\normalfont :8482}};
+\node[ahdb] (db) at (4.9,2.6) {ah\_workflow\\(MariaDB)};
+\node[ahext] (lcc) at (-3.8,0.4) {LocalCloudConfigurator,\\ SoLocalCloudConfigurator};
+\node[ahsys] (wfe1) at (-0.8,-1.4) {WorkflowExecutor A\\[-1pt]{\scriptsize\normalfont :8483, push}};
+\node[ahsys] (wfe2) at (4.0,-1.4) {WorkflowExecutor B\\[-1pt]{\scriptsize\normalfont pull}};
+\node[ahext] (core) at (-3.9,-4.0) {ServiceRegistry, Authentication,\\ ConsumerAuthorization, DSO};
+\node[ahext] (eq) at (2.0,-4.0) {Equipment\\[-1pt]{\scriptsize sensor, heater, nutrunner, \ldots}};
+\node[ahext] (prod) at (9.0,2.6) {Intelligent Product};
+\node[ahext] (cli) at (9.0,0.6) {Session owner};
+\draw[ahflow] (wfc) -- (wfm) node[midway,above,font=\scriptsize] {workflowRecipe};
+\draw[ahflow] (wfc) -- (lcc) node[midway,right,font=\scriptsize] {designs};
+\draw[thick,ArrowheadOrange] (wfm) -- (db);
+\draw[ahflow] ([xshift=-8mm]wfm.south) -- ([xshift=-4mm]wfe1.north) node[pos=0.45,left,font=\scriptsize,align=right] {workflowExecution\\ (push)};
+\draw[ahflow] ([xshift=6mm]wfe1.north) -- ([xshift=-2mm]wfm.south) node[pos=0.55,right,font=\scriptsize,align=left] {workItem, context,\\ lease};
+\draw[ahflow] (wfe2.north) -- ([xshift=8mm]wfm.south) node[pos=0.5,right,font=\scriptsize,align=left] {claim, report,\\ context, lease};
+\draw[ahflow] (wfe1.south) -- (eq.north west) node[pos=0.5,right,font=\scriptsize] {invoke};
+\draw[ahflow] (wfe2.south) -- (eq.north east) node[pos=0.5,right,font=\scriptsize] {invoke};
+\draw[ahflow] (wfe1.south west) -- (core.north east) node[pos=0.5,left,font=\scriptsize,align=right] {orchestration\\ (requester = WfE)};
+\draw[ahflow] (wfm.north) to[out=35,in=145] node[pos=0.5,above,font=\scriptsize] {workflowProduct} (prod.north);
+\draw[ahflow] (cli.west) -- (wfm.south east) node[pos=0.4,below,font=\scriptsize] {workflowInstance};
+\end{tikzpicture}
+  }
+  \caption{White-box view: the constituent systems in a workstation local cloud and the services between them.}
+  \label{fig:whitebox}
+\end{figure}
+
+
+\subsection{Constituent systems}
+
+{\small
+\begin{longtable}{|p{3.6cm}|p{2.2cm}|p{6.6cm}|p{3.4cm}|}
+
+\hline
+\rowcolor{gray!33} System & Port & Role & Documents \\ \hline
+\endhead
+WorkflowManager & 8482 & Book-keeper: recipes, sessions, dispatch, context, leases & SysD, SysDD \\ \hline
+WorkflowExecutor & 8483 & Runs steps as consumer; adapters; Choreographer executor & SysD, SysDD \\ \hline
+WorkflowConfigurator & 8484 / 8485 & Design tool and console & SysD, SysDD \\ \hline
+\end{longtable}
+}
+
+
+\newpage
+\section{Service architecture}
+\label{sec:services}
+
+{\small
+\begin{longtable}{|p{3.6cm}|p{1.6cm}|p{3.4cm}|p{7.2cm}|}
+
+\hline
+\rowcolor{gray!33} Service & Provider & Consumers & Operations \\ \hline
+\endhead
+\texttt{workflowConfiguration} & WfC & Engineer (console), tools & list-clouds, list-services, list-executors, list-recipes, get-recipe, validate-recipe, store-recipe \\ \hline
+\texttt{workflowRecipe} & WfM & WfC, tools & validate, register, query, get, retire, compile \\ \hline
+\texttt{workflowInstance} & WfM & Owner, product & start, abort, query, get-status, get-trace \\ \hline
+\texttt{workflowWorkItem} & WfM & WfE & claim, report \\ \hline
+\texttt{workflowContext} & WfM & WfE & get-parameters, get-results, put-result \\ \hline
+\texttt{workflowLease} & WfM & WfE & reserve, poll, renew, release \\ \hline
+\texttt{workflowManagement} & WfM & Sysop & query-worklog, query-executors, query-work-items \\ \hline
+\texttt{workflowExecution} & WfE & WfM & service-info, start, abort, get-status \\ \hline
+\texttt{workflowProduct} & Product & WfM & retrieve-process-step, store-process-step-result \\ \hline
+\texttt{generalManagement} & all & Sysop & get-log, get-config \\ \hline
+\end{longtable}
+}
+
+All services are HTTP/TLS/JSON services, version 1.0.0, interface template \texttt{generic\_https}, policy
+\texttt{CERT\_AUTH}; each operation is registered with its method and path and authorized separately. The executors are
+discovered by the WorkflowManager as providers of \texttt{workflowExecution} in the ServiceRegistry with the metadata
+\texttt{workflowCapabilities}, \texttt{workflowServices}, \texttt{workflowWorkstation} and \texttt{workflowMode}, registered
+with \texttt{unrestrictedDiscovery} so that RESTRICTED discovery does not hide them.
+
+\section{Workflow model}
+\label{sec:model}
+\subsection{Recipe}
+A recipe realises the formal tuple $W = (P, A, S, \theta, \iota, \mu, q, pre, \eta, qnty, dep, \kappa)$ of~\cite{varga2026}:
+actions $A$ with \texttt{firstAction} and \texttt{next}, steps $S$ per action, the service requirement $\theta(s)$
+(\texttt{service}), successors (\texttt{next}, giving $pre$), the executor requirement $\eta(s)$ (\texttt{executor}), the
+quantity (\texttt{policy.quantity}, only 1), the data dependencies $dep(s)$ (\texttt{dep}) and the input composition
+$\kappa_s$ (\texttt{input}, a template over $\rho$ and $\xi|dep(s)$). Extensions add \texttt{guards} per successor,
+retry and timeout policies, and resources with lease modes reserve/use/release. Recipes are JSON documents
+(\texttt{model/recipe.schema.json}), decoded strictly (unknown fields rejected) and stored canonically and immutably per
+name and version. The data model is specified in the \texttt{workflowRecipe} SD and IDD.
+
+\subsection{Validation}
+The validator (\texttt{workflow-model}, \texttt{RecipeValidator}, plus the WorkflowManager's \texttt{CatalogueCheck} through
+the \texttt{RecipeCheck} SPI) reports coded findings: structure S00--S09 and P01 (W1--W2), data flow D01--D05 (W3--W4,
+Lemma~2), guards G01--G05, leases L01--L05 (premise of Proposition~1), model limits M01--M02, and catalogue C01--C02
+against the running cloud. The verdict is the worst outcome (REJECT $>$ CLARIFY $>$ REVISE $>$ ACCEPT); only ACCEPT is
+registered. The WorkflowConfigurator mirrors the local checks with the same codes for immediate feedback.
+
+\section{Execution semantics}
+\label{sec:semantics}
+\subsection{Session state}
+A session is one execution of one recipe version for one subject. Its state is
+$z = (M, M_A, \beta, \varepsilon, \xi, status)$ with step marking $M: S \rightarrow \{inactive, enabled, running,
+completed\}$ (plus \emph{skipped} under guards), action marking $M_A$, bindings $\beta$, executor assignment
+$\varepsilon$, stored results $\xi$ and $status \in \{running, completed, failed\}$. The initial state has every step
+inactive and $\alpha_0$ active. The consumer of a step $c_z(s)$ is the assigned executor; orchestration is always
+requested with it as requester, which makes the workflow layer a conservative extension of Arrowhead.
+
+\subsection{Transition rules}
+
+{\small
+\begin{longtable}{|p{2.0cm}|p{5.4cm}|p{3.6cm}|p{4.8cm}|}
+
+\hline
+\rowcolor{gray!33} Rule & Premise & Effect & Realisation \\ \hline
+\endhead
+A-Start & $M_A(\alpha)$ inactive, predecessor action completed & $M_A(\alpha) :=$ active & WfM \\ \hline
+S-Enable & action active, $M(s)$ inactive, all $p \in pre(s)$ completed & $M(s) :=$ enabled & WfM; work item published or dispatched \\ \hline
+S-Bind & $M(s)$ enabled, an executor assignment and orchestration $\pi \neq \bot$ & $M(s) :=$ running, $\beta(s) := \pi$ & WfM chooses $\varepsilon(s)$; WfE orchestrates and reports BOUND \\ \hline
+S-Done & $M(s)$ running, invocation returns $d' \neq fail$ & $M(s) :=$ completed, $\xi(s) := d'$ & WfE invokes, stores and reports SUCCESS \\ \hline
+A-Finish & action active, all its steps completed & $M_A(\alpha) :=$ completed & WfM \\ \hline
+Z-Close & all actions completed & $status :=$ completed & WfM; results to product \\ \hline
+S-FailBind & no executor/provider can be bound & $status :=$ failed & WfM (BIND\_FAILED on all candidates, claim timeout) \\ \hline
+S-FailInvoke & invocation fails & $status :=$ failed & WfE reports FATAL\_ERROR (or ERROR without retry) \\ \hline
+\end{longtable}
+}
+
+For well-formed recipes without extensions a run has at most $3|S| + 2|A|$ transitions (exactly that many on success),
+for example 11 for the three-step temperature control, 33 for the nine-step forklift recipe, and 9 when the
+temperature switch fails. The WorkflowManager reports the count and the bound for every session.
+
+\subsection{Result codes}
+
+{\small
+\begin{longtable}{|p{2.8cm}|p{3.6cm}|p{9.4cm}|}
+
+\hline
+\rowcolor{gray!33} Report & Model & Reaction of the WorkflowManager \\ \hline
+\endhead
+SUCCESS & S-Done & Continue. \\ \hline
+FATAL\_ERROR & S-FailInvoke & Session failed (absorbing). \\ \hline
+ERROR & extension x-rebind or x-retry & Under a retry policy: exclude the executor and bind again (\texttt{rebind}), or dispatch to the same executor after a backoff (\texttt{retry}); otherwise as FATAL\_ERROR. \\ \hline
+ABORTED & extension x-abort & Session failed. \\ \hline
+BOUND & completes S-Bind & Executor may invoke. \\ \hline
+BIND\_FAILED & S-Bind not possible & Next executor, otherwise S-FailBind. \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Extensions beyond the proven model}
+
+{\small
+\begin{longtable}{|p{3.0cm}|p{8.2cm}|p{4.6cm}|}
+
+\hline
+\rowcolor{gray!33} Extension & Purpose & Status \\ \hline
+\endhead
+x-rebind & Retry or re-bind on ERROR or an unreachable executor & Implemented \\ \hline
+x-abort & External abort & Implemented \\ \hline
+x-timeout & Step timeout & Implemented \\ \hline
+compensation & Release a failed session's leases & Implemented (configurable) \\ \hline
+x-retry & Same-executor retry after a backoff on ERROR (2026-11-24) & Implemented \\ \hline
+x-guard / x-skip & Conditions on transitions, dead-path elimination & Implemented \\ \hline
+qnty $>$ 1 & Repeated execution & Not implemented (refused by M01) \\ \hline
+federation & Delegation of actions across clouds & Not implemented \\ \hline
+\end{longtable}
+}
+
+Sessions that use an extension list it in \texttt{extensions} and are marked \texttt{withinModel = false} in the trace;
+conformance checks apply only to the others.
+
+\subsection{Shared resources}
+Proposition~1 (exclusive tool use) needs reserve $\prec$ every tool-using step $\prec$ release, which the validator checks
+(L02, L03, L05), and a tool manager granting one session at a time. The lease variant of \texttt{workflowLease} grants in
+FIFO order and expires unrenewed leases; tool-using steps renew with the token from $\xi(s_{res})$ immediately before
+use. Exclusive use then additionally assumes that each lease outlasts the longest tool step (L04); this is checked on runs
+but not proved.
+
+\newpage
+\section{Interaction sequences}
+\label{sec:sequences}
+\subsection{Design and store a workflow}
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\textwidth}{!}{
+\begin{tikzpicture}
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hU) at (0.00,0) {Engineer};
+\draw[densely dashed,gray] (hU.south) -- (0.00,-9.04);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hC) at (3.60,0) {WorkflowConfigurator};
+\draw[densely dashed,gray] (hC.south) -- (3.60,-9.04);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hR) at (7.20,0) {ServiceRegistry};
+\draw[densely dashed,gray] (hR.south) -- (7.20,-9.04);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hM) at (10.80,0) {WorkflowManager};
+\draw[densely dashed,gray] (hM.south) -- (10.80,-9.04);
+\draw[ahflow] (0.00,-0.90) -- (3.60,-0.90) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 1}\ login (console)};
+\draw[ahflow] (0.00,-1.62) -- (3.60,-1.62) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 2}\ list-clouds, list-services};
+\draw[ahflow] (3.60,-2.34) -- (7.20,-2.34) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 3}\ system-query, service-query};
+\draw[ahflow,densely dashed] (7.20,-3.06) -- (3.60,-3.06) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 4}\ systems, services};
+\draw[ahflow] (0.00,-3.78) -- ++(0.35,0) -- ++(0,-0.25) -- ++(-0.35,0);
+\node[font=\scriptsize,anchor=west] at (0.40,-3.90) {{\tiny\bfseries 5}\ draw steps, conditions, inputs};
+\draw[ahflow] (0.00,-4.50) -- (3.60,-4.50) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 6}\ validate-recipe};
+\draw[ahflow] (3.60,-5.22) -- (10.80,-5.22) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 7}\ workflowRecipe.validate};
+\draw[ahflow,densely dashed] (10.80,-5.94) -- (3.60,-5.94) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 8}\ ValidationReport};
+\draw[ahflow] (0.00,-6.66) -- (3.60,-6.66) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 9}\ store-recipe};
+\draw[ahflow] (3.60,-7.38) -- (10.80,-7.38) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 10}\ workflowRecipe.register};
+\draw[ahflow,densely dashed] (10.80,-8.10) -- (3.60,-8.10) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 11}\ 201 RecipeRegistration};
+\end{tikzpicture}
+  }
+  \caption{Designing and storing a workflow with the WorkflowConfigurator.}
+  \label{fig:seq:design}
+\end{figure}
+
+\subsection{Orchestrated run (push)}
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\textwidth}{!}{
+\begin{tikzpicture}
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hO) at (0.00,0) {Session owner};
+\draw[densely dashed,gray] (hO.south) -- (0.00,-9.76);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hM) at (3.60,0) {WorkflowManager};
+\draw[densely dashed,gray] (hM.south) -- (3.60,-9.76);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hE) at (7.20,0) {WorkflowExecutor};
+\draw[densely dashed,gray] (hE.south) -- (7.20,-9.76);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hD) at (10.80,0) {DSO / ConsumerAuth.};
+\draw[densely dashed,gray] (hD.south) -- (10.80,-9.76);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hQ) at (14.40,0) {Equipment};
+\draw[densely dashed,gray] (hQ.south) -- (14.40,-9.76);
+\draw[ahflow] (0.00,-0.90) -- (3.60,-0.90) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 1}\ workflowInstance.start};
+\draw[ahflow] (3.60,-1.62) -- ++(0.35,0) -- ++(0,-0.25) -- ++(-0.35,0);
+\node[font=\scriptsize,anchor=west] at (4.00,-1.74) {{\tiny\bfseries 2}\ A-Start, S-Enable};
+\draw[ahflow] (3.60,-2.34) -- (7.20,-2.34) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 3}\ workflowExecution.start(work item)};
+\draw[ahflow] (7.20,-3.06) -- (10.80,-3.06) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 4}\ orchestration (requester = WfE)};
+\draw[ahflow,densely dashed] (10.80,-3.78) -- (7.20,-3.78) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 5}\ provider endpoint};
+\draw[ahflow] (7.20,-4.50) -- (3.60,-4.50) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 6}\ report BOUND (S-Bind)};
+\draw[ahflow] (7.20,-5.22) -- (3.60,-5.22) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 7}\ get-parameters, get-results};
+\draw[ahflow] (7.20,-5.94) -- (14.40,-5.94) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 8}\ invoke with input $\kappa_s$};
+\draw[ahflow,densely dashed] (14.40,-6.66) -- (7.20,-6.66) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 9}\ result};
+\draw[ahflow] (7.20,-7.38) -- (3.60,-7.38) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 10}\ put-result; report SUCCESS (S-Done)};
+\draw[ahflow] (3.60,-8.10) -- ++(0.35,0) -- ++(0,-0.25) -- ++(-0.35,0);
+\node[font=\scriptsize,anchor=west] at (4.00,-8.22) {{\tiny\bfseries 11}\ next steps ... A-Finish, Z-Close};
+\draw[ahflow] (0.00,-8.82) -- (3.60,-8.82) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 12}\ get-status / get-trace};
+\end{tikzpicture}
+  }
+  \caption{A session in push mode: the WorkflowManager selects the executor, the executor binds and invokes the provider.}
+  \label{fig:seq:push}
+\end{figure}
+
+\subsection{Blackboard run with a shared tool (pull)}
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\textwidth}{!}{
+\begin{tikzpicture}
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hM) at (0.00,0) {WorkflowManager};
+\draw[densely dashed,gray] (hM.south) -- (0.00,-9.04);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hE) at (3.60,0) {WorkflowExecutor (pull)};
+\draw[densely dashed,gray] (hE.south) -- (3.60,-9.04);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hL) at (7.20,0) {workflowLease};
+\draw[densely dashed,gray] (hL.south) -- (7.20,-9.04);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hQ) at (10.80,0) {Tool / equipment};
+\draw[densely dashed,gray] (hQ.south) -- (10.80,-9.04);
+\draw[ahflow] (0.00,-0.90) -- ++(0.35,0) -- ++(0,-0.25) -- ++(-0.35,0);
+\node[font=\scriptsize,anchor=west] at (0.40,-1.02) {{\tiny\bfseries 1}\ S-Enable: work item OPEN};
+\draw[ahflow] (3.60,-1.62) -- (0.00,-1.62) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 2}\ claim(capabilities, services)};
+\draw[ahflow,densely dashed] (0.00,-2.34) -- (3.60,-2.34) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 3}\ WorkItem (CLAIMED)};
+\draw[ahflow] (3.60,-3.06) -- (7.20,-3.06) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 4}\ reserve (step mode reserve)};
+\draw[ahflow,densely dashed] (7.20,-3.78) -- (3.60,-3.78) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 5}\ QUEUED ticket ... poll ... GRANTED token};
+\draw[ahflow] (3.60,-4.50) -- (0.00,-4.50) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 6}\ put-result(token); SUCCESS};
+\draw[ahflow] (3.60,-5.22) -- (0.00,-5.22) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 7}\ claim next step (mode use)};
+\draw[ahflow] (3.60,-5.94) -- (7.20,-5.94) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 8}\ renew(token)};
+\draw[ahflow] (3.60,-6.66) -- (10.80,-6.66) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 9}\ use tool};
+\draw[ahflow] (3.60,-7.38) -- (0.00,-7.38) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 10}\ report SUCCESS};
+\draw[ahflow] (3.60,-8.10) -- (7.20,-8.10) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 11}\ release(token) (mode release)};
+\end{tikzpicture}
+  }
+  \caption{A pull-mode executor claims steps and uses a shared tool under a lease.}
+  \label{fig:seq:pull}
+\end{figure}
+
+\subsection{Product-driven run}
+
+\begin{figure}[H]
+  \centering
+  \resizebox{0.9\textwidth}{!}{
+\begin{tikzpicture}
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hP) at (0.00,0) {Intelligent Product};
+\draw[densely dashed,gray] (hP.south) -- (0.00,-6.88);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hM) at (4.20,0) {WorkflowManager};
+\draw[densely dashed,gray] (hM.south) -- (4.20,-6.88);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hE) at (8.40,0) {WorkflowExecutors};
+\draw[densely dashed,gray] (hE.south) -- (8.40,-6.88);
+\draw[ahflow] (0.00,-0.90) -- (4.20,-0.90) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 1}\ workflowInstance.start(product)};
+\draw[ahflow] (4.20,-1.62) -- (0.00,-1.62) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 2}\ workflowProduct.retrieve-process-step(workstationId)};
+\draw[ahflow,densely dashed] (0.00,-2.34) -- (4.20,-2.34) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 3}\ recipe, parameters, subject};
+\draw[ahflow] (4.20,-3.06) -- ++(0.35,0) -- ++(0,-0.25) -- ++(-0.35,0);
+\node[font=\scriptsize,anchor=west] at (4.60,-3.18) {{\tiny\bfseries 4}\ validate, register, open session};
+\draw[ahflow] (4.20,-3.78) -- (8.40,-3.78) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 5}\ dispatch steps (push or pull)};
+\draw[ahflow,densely dashed] (8.40,-4.50) -- (4.20,-4.50) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 6}\ reports};
+\draw[ahflow] (4.20,-5.22) -- ++(0.35,0) -- ++(0,-0.25) -- ++(-0.35,0);
+\node[font=\scriptsize,anchor=west] at (4.60,-5.34) {{\tiny\bfseries 7}\ Z-Close};
+\draw[ahflow] (4.20,-5.94) -- (0.00,-5.94) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 8}\ workflowProduct.store-process-step-result};
+\end{tikzpicture}
+  }
+  \caption{The product provides the recipe fragment and receives the results (Intelligent Product pattern).}
+  \label{fig:seq:product}
+\end{figure}
+
+\subsection{Coexistence with the Choreographer}
+
+\begin{figure}[H]
+  \centering
+  \resizebox{\textwidth}{!}{
+\begin{tikzpicture}
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hT) at (0.00,0) {Tool};
+\draw[densely dashed,gray] (hT.south) -- (0.00,-7.60);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hM) at (3.60,0) {WorkflowManager};
+\draw[densely dashed,gray] (hM.south) -- (3.60,-7.60);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hC) at (7.20,0) {Choreographer};
+\draw[densely dashed,gray] (hC.south) -- (7.20,-7.60);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hE) at (10.80,0) {WorkflowExecutor};
+\draw[densely dashed,gray] (hE.south) -- (10.80,-7.60);
+\node[ahsys,minimum width=2.5cm,minimum height=0.8cm,font=\scriptsize\bfseries] (hD) at (14.40,0) {DSO};
+\draw[densely dashed,gray] (hD.south) -- (14.40,-7.60);
+\draw[ahflow] (10.80,-0.90) -- (7.20,-0.90) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 1}\ choreographerExecutor.register};
+\draw[ahflow] (0.00,-1.62) -- (3.60,-1.62) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 2}\ workflowRecipe.compile};
+\draw[ahflow,densely dashed] (3.60,-2.34) -- (0.00,-2.34) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 3}\ ChoreographerPlan (lossySteps)};
+\draw[ahflow] (0.00,-3.06) -- (7.20,-3.06) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 4}\ create plan, start session};
+\draw[ahflow] (7.20,-3.78) -- (10.80,-3.78) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 5}\ service-info};
+\draw[ahflow] (7.20,-4.50) -- (14.40,-4.50) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 6}\ orchestrate for the executor};
+\draw[ahflow] (7.20,-5.22) -- (10.80,-5.22) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 7}\ start step};
+\draw[ahflow] (10.80,-5.94) -- (7.20,-5.94) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 8}\ notify-step-done};
+\draw[ahflow] (10.80,-6.66) -- (7.20,-6.66) node[midway,above=0pt,font=\scriptsize,inner sep=1.5pt] {{\tiny\bfseries 9}\ unregister (shutdown)};
+\end{tikzpicture}
+  }
+  \caption{A compiled recipe runs as a Choreographer plan on a WorkflowExecutor.}
+  \label{fig:seq:chor}
+\end{figure}
+
+The compiled plan has no data flow: inputs, guards and dependencies are listed as \texttt{lossySteps}. The executor
+compares service names case-insensitively without separators, because the Choreographer normalises definitions to
+camelCase.
+
+\section{Deployment}
+\label{sec:deployment}
+
+{\small
+\begin{longtable}{|p{3.2cm}|p{3.6cm}|p{3.0cm}|p{4.4cm}|p{1.6cm}|}
+
+\hline
+\rowcolor{gray!33} System & Instances & Ports & Persistence & Memory \\ \hline
+\endhead
+WorkflowManager & 1 per work-centre local cloud & 8482 & MariaDB/MySQL schema \texttt{ah\_workflow} (TLS) & 1 GiB \\ \hline
+WorkflowExecutor & 1 or more per workstation & 8483 & none (embedded H2 log) & 768 MiB \\ \hline
+WorkflowConfigurator & 1 per cloud (optional) & 8484, console 8485 (loopback) & none (in-memory H2 log) & -- \\ \hline
+\end{longtable}
+}
+
+Each system runs as a container built from the primary Java source, with its certificate, trust store and secrets
+mounted. A Workflow SoS needs a local cloud with ServiceRegistry, Authentication, ConsumerAuthorization and
+DynamicServiceOrchestration; the WorkflowConfigurator additionally uses the LocalCloudConfigurator and the
+SoLocalCloudConfigurator when present. The ServiceRegistry must run its management policy \texttt{authorization} for the
+configurator's \texttt{serviceRegistryManagement} grant to take effect.
+
+\section{Security realisation}
+\label{sec:security}
+The grants a deployment needs in ConsumerAuthorization:
+
+{\small
+\begin{longtable}{|p{3.6cm}|p{3.2cm}|p{9.0cm}|}
+
+\hline
+\rowcolor{gray!33} Consumer & Provider & Service and operations \\ \hline
+\endhead
+Session owner, product & WorkflowManager & workflowInstance: start, query, get-status, get-trace, abort \\ \hline
+WorkflowConfigurator & WorkflowManager & workflowRecipe: validate, register, query, get \\ \hline
+WorkflowConfigurator & ServiceRegistry & serviceRegistryManagement: system-query, service-query (SR management policy \texttt{authorization}) \\ \hline
+WorkflowExecutor & WorkflowManager & workflowWorkItem, workflowContext, workflowLease: all operations \\ \hline
+WorkflowManager & WorkflowExecutor & workflowExecution: service-info, start, abort, get-status \\ \hline
+WorkflowExecutor & Equipment & each step service (and the services in $dep(s)$ needed by the provider) \\ \hline
+WorkflowManager & Product & workflowProduct: both operations \\ \hline
+Engineering tool & WorkflowConfigurator & workflowConfiguration: as needed \\ \hline
+\end{longtable}
+}
+
+In addition each system makes object-level checks: work-item holder (report, context), session owner (abort),
+configured WorkflowManager (executor start/abort) and configured Choreographer (compatibility interface). Management
+services are sysop only. The configurator console is reachable only on its loopback connector.
+
+\section{Implementation status and cross-language parity}
+\label{sec:status}
+
+{\small
+\begin{longtable}{|p{6.6cm}|p{5.0cm}|p{2.1cm}|p{2.1cm}|}
+
+\hline
+\rowcolor{gray!33} Area & Java (reference) & Go & Rust \\ \hline
+\endhead
+Recipe model, codec, schema, validator (30 codes) & Implemented & -- & -- \\ \hline
+Session rules, Theorem~1 count, snapshot and resume & Implemented & -- & -- \\ \hline
+Push and pull dispatch, context, leases & Implemented & -- & -- \\ \hline
+Event dispatch, workflow events & Not implemented & -- & -- \\ \hline
+Product integration & Consumer side only & -- & -- \\ \hline
+Choreographer compatibility (both directions) & Implemented, verified with Choreographer 5.4.0 & -- & -- \\ \hline
+WorkflowConfigurator and editor & Implemented & -- & -- \\ \hline
+Federation, disconnected working copy & Not implemented & -- & -- \\ \hline
+Conformance vectors for cross-language parity & Not written & -- & -- \\ \hline
+\end{longtable}
+}
+
+The Go and Rust trees contain no workflow systems. Interoperability requires them to implement the IDDs of this set and
+the behaviour of \texttt{workflow-model} (decoder, validator findings and verdicts, guard grammar, transition rules); the
+conformance vectors (recipe in, verdict and transition trace out) that should make this checkable are not written yet.
+Until then the SoS interoperates with Go and Rust \emph{core} systems only through the standard Arrowhead services.
+
+\section{Verification}
+\label{sec:verification}
+\begin{itemize}
+\item Unit tests: 25 model, 9 WorkflowManager, 7 WorkflowExecutor and 7 WorkflowConfigurator tests; 12 Node tests of the
+editor model.
+\item Smoke test in an isolated Docker network: 18/18 checks, including three concurrent forklift sessions without
+overlapping tool use and lease expiry after a blocked AGV.
+\item Cloud test against the Java test cloud (RESTRICTED discovery, identity tokens, ConsumerAuthorization):
+49/49 checks, covering registration, discovery, 401/403 cases, binding with the executors' certificates, transition
+counts, pull mode, abort, compile, the configurator and guarded recipes; Choreographer compatibility 34/34 checks
+against Choreographer 5.4.0.
+\end{itemize}
+
+\section{Open issues}
+\begin{enumerate}
+\item Whether the WorkflowManager later supersedes the Choreographer (option B) or both keep coexisting (option A, implemented).
+\item Whether \texttt{workflowLease} stays in the WorkflowManager or moves to a dedicated resource system.
+\item Standardising an \texttt{equipmentJob} capability interface for generic executors.
+\item The \texttt{workflowProduct} contract and its link to AAS/digital-twin models; it needs an owner.
+\item Formalising the extensions (recovery, timeout, quantity $>$ 1) and federation.
+\item Go and Rust implementations with shared conformance vectors.
+\end{enumerate}
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-23 & \arrowversion & Initial edition: white-box design description of the Workflow SoS, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}
