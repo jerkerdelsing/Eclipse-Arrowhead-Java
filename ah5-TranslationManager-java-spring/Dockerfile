@@ -10,7 +10,7 @@ RUN apt-get update && apt-get -y upgrade && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /source/target/arrowhead-translation-manager-5.4.0.jar /app/app.jar
 COPY config /app/config
-RUN mkdir -p /app/logs && chown -R 10001:10001 /app
+RUN mkdir -p /app/logs /data && chown -R 10001:10001 /app /data && chmod 700 /data
 USER 10001:10001
 EXPOSE 8465
 HEALTHCHECK --interval=15s --start-period=90s --timeout=4s CMD ["bash","-c","exec 3<>/dev/tcp/127.0.0.1/8465"]

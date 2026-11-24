@@ -12,8 +12,8 @@ RHEL/Rocky/Alma 9 and Fedora work the same way with their package manager).
 | Disk | 15 GB (prebuilt images) | 30 GB (build on target: Maven and image layers) |
 | Network | the organisation relay host and port (outbound TCP) | |
 
-Each Arrowhead system runs as one container plus, for most, a private MySQL container; budget about 300 MB of memory
-per system with a database.
+Each Arrowhead system runs as one container and keeps its data in its own embedded database; budget about 600 MB of
+memory per system.
 
 ## Software
 

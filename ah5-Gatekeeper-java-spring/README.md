@@ -100,7 +100,7 @@ See [DEPLOYMENT.md](DEPLOYMENT.md). In short:
    - the separate relay identity: `gatekeeper-relay-chain.crt`, `gatekeeper-relay.key` and `org-ca.crt`.
 3. Run `docker compose up -d --build`.
 
-Compose starts Gatekeeper and its private `gatekeeper-db` (MySQL 8.4.11, TLS required, internal network, DML-only account).
+Compose starts Gatekeeper, which keeps its data in its own embedded database (volume `/data`).
 
 ### Importing an old SQLite store
 

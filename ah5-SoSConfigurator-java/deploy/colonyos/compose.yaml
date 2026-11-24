@@ -3,7 +3,7 @@
 # (make executors-start), because they drive those hosts' docker compose and the clouds' management APIs with Sysop.
 # All ports are published on loopback only. Secrets: make keygen (files in ./secrets, mode 0600).
 # The configurator is an Arrowhead support system: it joins the selected cloud network (ARROWHEAD_NETWORK), registers in that
-# cloud's ServiceRegistry with its own certificate, and keeps its records in its own MySQL database (sosconfigurator-db).
+# cloud's ServiceRegistry with its own certificate, and keeps its records in its own embedded database.
 name: sos-colonyos
 
 secrets:
@@ -12,7 +12,6 @@ secrets:
   sos_api_prvkey: { file: ./secrets/sos_api_prvkey }
   sos_console_password_hash: { file: ./secrets/sos_console_password_hash }
   sos_db_password: { file: ./secrets/sos_db_password }
-  sos_db_root_password: { file: ./secrets/sos_db_root_password }
   sos_store_password:
     file: ${STORE_PASSWORD_FILE:-./secrets/store-password}
   sos_identity_password:
@@ -72,7 +71,6 @@ services:
     restart: unless-stopped
     depends_on:
       colonies-server: { condition: service_started }
-      sosconfigurator-db: { condition: service_healthy }
     user: "10001:10001"
     read_only: true
     tmpfs: ["/tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777", "/app/logs:rw,noexec,nosuid,nodev,size=32m,mode=1777"]
@@ -101,6 +99,8 @@ services:
       SYSMONITOR_ENABLED: "${SYSMONITOR_ENABLED:-true}"
       SOS_API_WHITELIST: ${SOS_API_WHITELIST:-}
     volumes:
+      # the system's own embedded database; no other container mounts it
+      - sos-state:/data
       - type: bind
         source: ${SYSTEM_KEYSTORE_FILE:-./secrets/SoSConfigurator.p12}
         target: /certs/SoSConfigurator.p12
@@ -109,11 +109,6 @@ services:
       - type: bind
         source: ${TRUSTSTORE_FILE:-./secrets/truststore.p12}
         target: /certs/truststore.p12
-        read_only: true
-        bind: {create_host_path: false}
-      - type: bind
-        source: ${DB_CA_FILE:-./secrets/db-ca.crt}
-        target: /certs/db-ca.crt
         read_only: true
         bind: {create_host_path: false}
       - type: bind
@@ -126,51 +121,13 @@ services:
       - "127.0.0.1:${SOS_CONSOLE_PORT:-8495}:8495"
     networks:
       default: {}
-      database: {}
       cloud:
         aliases: [sosconfigurator]
-
-  sosconfigurator-db:
-    build:
-      context: ../..
-      dockerfile: deployment/database/Dockerfile
-    image: eclipse-arrowhead/sosconfigurator-java-db:5.4.0
-    restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: ah_sosconfigurator
-      MYSQL_USER: sosconfigurator
-      MYSQL_PASSWORD_FILE: /run/secrets/sos_db_password
-      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/sos_db_root_password
-    secrets: [sos_db_password, sos_db_root_password]
-    command: ["--ssl-ca=/tls/ca.crt", "--ssl-cert=/tls/db.crt", "--ssl-key=/tls/db.key", "--require-secure-transport=ON"]
-    volumes:
-      - sos-db-data:/var/lib/mysql
-      - type: bind
-        source: ${DB_CA_FILE:-./secrets/db-ca.crt}
-        target: /tls/ca.crt
-        read_only: true
-        bind: {create_host_path: false}
-      - type: bind
-        source: ${DB_CERT_FILE:-./secrets/db.crt}
-        target: /tls/db.crt
-        read_only: true
-        bind: {create_host_path: false}
-      - type: bind
-        source: ${DB_KEY_FILE:-./secrets/db.key}
-        target: /tls/db.key
-        read_only: true
-        bind: {create_host_path: false}
-    networks: [database]
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"]
-      interval: 5s
-      timeout: 4s
-      retries: 30
 
 volumes:
   timescaledb-data:
   colonies-etcd:
-  sos-db-data:
+  sos-state:
 
 networks:
   default:
@@ -178,11 +135,6 @@ networks:
     ipam:
       config:
         - subnet: ${SOS_SUBNET:-10.240.91.0/24}
-  database:
-    internal: true
-    ipam:
-      config:
-        - subnet: ${SOS_DB_SUBNET:-10.252.217.0/24}
   cloud:
     external: true
     name: ${ARROWHEAD_NETWORK:-arrowhead-local-cloud}

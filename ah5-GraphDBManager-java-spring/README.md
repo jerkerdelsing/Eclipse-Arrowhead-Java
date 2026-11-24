@@ -1,5 +1,8 @@
 # GraphDBManager 5.2.2
 
+> Since 24 November 2026 the historian is an RDF4J native store inside the GraphDBManager process (`historian.directory`, volume `/data`).
+> The Ontotext GraphDB server, its container, accounts and SPARQL endpoint described below are no longer used.
+
 GraphDBManager is a copy of the Arrowhead 5.2.2 Java [DataManager](../ah5-DataManager-java-spring/README.md) (copied 28 October 2026) whose historian is kept in [Ontotext GraphDB Free](https://graphdb.ontotext.com/), an RDF triple store, instead of MySQL. The API, SenML validation, certificate-bound ConsumerAuthorization checks and the sysMonitor publisher are DataManager's; only names and persistence differ.
 
 ## Arrowhead names

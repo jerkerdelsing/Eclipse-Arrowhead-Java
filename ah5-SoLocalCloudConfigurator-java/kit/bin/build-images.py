@@ -6,7 +6,7 @@
 
 <checkout> is the Eclipse-Arrowhead-java source at the package's pinned commit. Support system images come from the build
 sections of each ah5-<System> folder's compose.yaml (their Dockerfiles run the folder's Maven build and tests); core
-images from ah5-core-java-spring/<module>/docker/Dockerfile-* plus the kit's read-only adapter and database image;
+images from ah5-core-java-spring/<module>/docker/Dockerfile-* plus the kit's read-only adapter;
 RandomDataProducer from the kit; brokers are pulled at their pinned digests. Existing images are kept. With --save, all
 images are written to one archive (docker save) for hosts without the source or a network.
 """
@@ -88,9 +88,6 @@ def main() -> None:
                 dockerfile = next(p for p in (pathlib.Path(tmp) / "ah5-core-java-spring" / module / "docker").glob("Dockerfile-*") if not p.name.endswith("-DB"))
                 build(native, pathlib.Path(tmp), dockerfile, a.platform, logs, ["--build-arg", "AH_VERSION=5.4.0"])
             build(image, KIT / "images/core-adapter", None, a.platform, logs, ["--build-arg", f"BASE_IMAGE={native}"])
-        elif name.endswith("-db") and name[:-3] in CORE:
-            module = name[:-3]
-            build(image, source / "ah5-core-java-spring", KIT / "images/core-db/Dockerfile", a.platform, logs, ["--build-arg", f"MODULE={module}"])
         else:
             folder = next((f for f in sorted(by_folder, key=len, reverse=True) if name == f or name.startswith(f + "-")), None)
             if not folder:

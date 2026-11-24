@@ -1,11 +1,11 @@
 # Deploying SoLocalCloudConfigurator
 
-`compose.yaml` runs the system and its private MySQL (schema `ah_solocalcloudconfigurator`, created by
-`deployment/database/init.sql`, least-privilege user). Like the other support systems it joins the cloud network and
+`compose.yaml` runs the system, which keeps its data in its own embedded database (`ah_solocalcloudconfigurator` in the
+volume `/data`, schema applied at start). Like the other support systems it joins the cloud network and
 needs, from the cloud:
 
 - certificate `SoLocalCloudConfigurator.<Cloud>.<Org>.arrowhead.eu` (SAN `solocalcloudconfigurator`) as
-  `SoLocalCloudConfigurator.p12`, the cloud trust store, the cloud CRL directory, database TLS certificates;
+  `SoLocalCloudConfigurator.p12`, the cloud trust store and the cloud CRL directory;
 - an Authentication identity `SoLocalCloudConfigurator` (password secret `identity-password`), store and database secrets;
 - ConsumerAuthorization policies (applied as Sysop):
   - provider SoLocalCloudConfigurator, service `soLocalCloudConfiguration`: default Sysop, every operation of the SoLC
@@ -43,3 +43,7 @@ kit/bin/assemble-package.sh solc-<name>-r<rev>.tar.gz --source <Eclipse-Arrowhea
 
 `kit/cloud` is regenerated from the reference cloud with `tools/make-kit.py`, then checked with
 `kit/bin/selftest.sh --module`.
+
+## Data
+
+The system keeps its data in its own embedded database (H2 in `/data`, the project-owned volume `state`). No database container, network or port exists, and no other container may mount that volume: the data is reachable only through the system's services. `DB_PASSWORD_FILE` opens the database file; do not change it after the first start. The schema (`src/main/resources/database/schema.sql`) is applied by the system itself. Back up the volume while the system is stopped.

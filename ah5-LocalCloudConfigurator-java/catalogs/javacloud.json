@@ -18,7 +18,6 @@
       "name": "ServiceRegistry",
       "kind": "core",
       "services": [
-        "serviceregistry-db",
         "serviceregistry"
       ],
       "requires": [
@@ -27,16 +26,13 @@
       "provision": [],
       "policies": [],
       "protected": true,
-      "internalAssets": [
-        "serviceregistry-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "serviceorchestration-dynamic",
       "name": "DynamicServiceOrchestration",
       "kind": "core",
       "services": [
-        "serviceorchestration-dynamic-db",
         "serviceorchestration-dynamic"
       ],
       "requires": [
@@ -48,16 +44,13 @@
       "provision": [],
       "policies": [],
       "protected": true,
-      "internalAssets": [
-        "serviceorchestration-dynamic-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "serviceorchestration-simple",
       "name": "SimpleOrchestration",
       "kind": "core",
       "services": [
-        "serviceorchestration-simple-db",
         "serviceorchestration-simple"
       ],
       "requires": [
@@ -66,16 +59,13 @@
       "provision": [],
       "policies": [],
       "protected": false,
-      "internalAssets": [
-        "serviceorchestration-simple-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "consumerauthorization",
       "name": "ConsumerAuthorization",
       "kind": "core",
       "services": [
-        "consumerauthorization-db",
         "consumerauthorization"
       ],
       "requires": [
@@ -86,16 +76,13 @@
       "provision": [],
       "policies": [],
       "protected": true,
-      "internalAssets": [
-        "consumerauthorization-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "authentication",
       "name": "Authentication",
       "kind": "core",
       "services": [
-        "authentication-db",
         "authentication"
       ],
       "requires": [
@@ -105,16 +92,13 @@
       "provision": [],
       "policies": [],
       "protected": true,
-      "internalAssets": [
-        "authentication-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "blacklist",
       "name": "Blacklist",
       "kind": "support",
       "services": [
-        "blacklist-db",
         "blacklist"
       ],
       "requires": [
@@ -123,16 +107,13 @@
       "provision": [],
       "policies": [],
       "protected": false,
-      "internalAssets": [
-        "blacklist-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "translation-manager",
       "name": "TranslationManager",
       "kind": "support",
       "services": [
-        "translation-manager-db",
         "translation-manager"
       ],
       "requires": [
@@ -141,16 +122,13 @@
       "provision": [],
       "policies": [],
       "protected": false,
-      "internalAssets": [
-        "translation-manager-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "device-qos-evaluator",
       "name": "DeviceQoSEvaluator",
       "kind": "support",
       "services": [
-        "device-qos-evaluator-db",
         "device-qos-evaluator"
       ],
       "requires": [
@@ -159,16 +137,13 @@
       "provision": [],
       "policies": [],
       "protected": false,
-      "internalAssets": [
-        "device-qos-evaluator-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "onboarding",
       "name": "Onboarding",
       "kind": "support",
       "services": [
-        "onboarding-db",
         "onboarding"
       ],
       "requires": [
@@ -179,9 +154,7 @@
         "configure-onboarding-policy.sh"
       ],
       "protected": false,
-      "internalAssets": [
-        "onboarding-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "device-demo",
@@ -201,7 +174,6 @@
       "name": "DataManager",
       "kind": "support",
       "services": [
-        "datamanager-db",
         "datamanager"
       ],
       "requires": [
@@ -214,16 +186,13 @@
         "configure-datamanager-monitoring-policy.sh"
       ],
       "protected": false,
-      "internalAssets": [
-        "datamanager-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "timemanager",
       "name": "TimeManager",
       "kind": "support",
       "services": [
-        "timemanager-db",
         "timemanager"
       ],
       "requires": [
@@ -237,16 +206,13 @@
         "configure-timemanager-policy.sh"
       ],
       "protected": false,
-      "internalAssets": [
-        "timemanager-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "eventhandler",
       "name": "EventHandler",
       "kind": "support",
       "services": [
-        "eventhandler-db",
         "eventhandler"
       ],
       "requires": [
@@ -258,16 +224,13 @@
         "configure-eventhandler-policy.sh"
       ],
       "protected": false,
-      "internalAssets": [
-        "eventhandler-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "plantdescriptionengine",
       "name": "PlantDescriptionEngine",
       "kind": "support",
       "services": [
-        "plantdescriptionengine-db",
         "plantdescriptionengine"
       ],
       "requires": [
@@ -281,16 +244,13 @@
         "configure-plantdescriptionengine-policy.sh"
       ],
       "protected": false,
-      "internalAssets": [
-        "plantdescriptionengine-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "configuration",
       "name": "Configuration",
       "kind": "support",
       "services": [
-        "configuration-db",
         "configuration"
       ],
       "requires": [
@@ -303,16 +263,13 @@
         "configure-configuration-policy.sh"
       ],
       "protected": false,
-      "internalAssets": [
-        "configuration-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "choreographer",
       "name": "Choreographer",
       "kind": "support",
       "services": [
-        "choreographer-db",
         "choreographer"
       ],
       "requires": [
@@ -325,16 +282,13 @@
         "configure-choreographer-policy.sh"
       ],
       "protected": false,
-      "internalAssets": [
-        "choreographer-db"
-      ]
+      "internalAssets": []
     },
     {
       "id": "graphdbmanager",
       "name": "GraphDBManager",
       "kind": "support",
       "services": [
-        "graphdbmanager-graphdb",
         "graphdbmanager"
       ],
       "requires": [
@@ -344,9 +298,7 @@
       "provision": [],
       "policies": [],
       "protected": false,
-      "internalAssets": [
-        "graphdbmanager-graphdb"
-      ]
+      "internalAssets": []
     },
     {
       "id": "random-data-producer",

@@ -5,7 +5,7 @@
   protected by `SHA256SUMS` (compare the checksum of the package file with the one the console shows).
 - **Per-cloud CA.** Each member has its own cloud CA (key on that host only). Inside a cloud, systems trust only their own
   cloud CA; mutual TLS with certificate-bound identities, ConsumerAuthorization for every call, Blacklist enforcement,
-  per-system database users and file-mounted secrets (the v5.3.0 hardening: read-only root filesystems, no capabilities,
+  one embedded database per system and file-mounted secrets (the v5.3.0 hardening: read-only root filesystems, no capabilities,
   memory and PID limits).
 - **Organisation trust, name-constrained.** The organisation CA cross-signs a cloud CA only from a request signed with
   that CA's key, and constrains it to `C=SE, O=<Org>, OU=<Cloud>`. A cloud CA therefore cannot issue a relay identity

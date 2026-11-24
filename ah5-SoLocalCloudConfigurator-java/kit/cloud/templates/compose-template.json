@@ -115,7 +115,8 @@
           "required": true
         }
       },
-      "pids_limit": 256
+      "pids_limit": 256,
+      "restart": "unless-stopped"
     },
     "amqp-broker": {
       "cap_drop": [
@@ -232,10 +233,6 @@
       ],
       "command": null,
       "depends_on": {
-        "authentication-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
         "serviceregistry": {
           "condition": "service_started",
           "required": true
@@ -267,14 +264,12 @@
         "SPRING_AUTOCONFIGURE_EXCLUDE": "org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration",
         "SPRING_CONFIG_IMPORT": "configtree:/run/secrets/",
         "SPRING_DATASOURCE_PASSWORD": "$${ah.db-password}",
-        "SPRING_DATASOURCE_URL": "jdbc:mariadb://authentication-db:3306/ah_authentication?sslMode=verify-full&serverSslCert=/etc/arrowhead/db-tls/ca.crt",
         "SYSMONITOR_ENABLED": "true"
       },
       "image": "@REGISTRY@/authentication-java:@TAG@",
       "mem_limit": "1073741824",
       "networks": {
-        "arrowhead": null,
-        "db-authentication": null
+        "arrowhead": null
       },
       "pids_limit": 256,
       "ports": [
@@ -313,13 +308,6 @@
       "volumes": [
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/etc/arrowhead/db-tls/ca.crt",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/runtime/Authentication/config/certificate",
           "target": "/app/config/certificate",
           "read_only": true,
@@ -331,94 +319,11 @@
           "target": "/crl",
           "read_only": true,
           "bind": {}
-        }
-      ]
-    },
-    "authentication-db": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": [
-        "--innodb-use-native-aio=0",
-        "--ssl-ca=/etc/mysql/tls/ca.crt",
-        "--ssl-cert=/etc/mysql/tls/server.crt",
-        "--ssl-key=/etc/mysql/tls/server.key",
-        "--require-secure-transport=ON"
-      ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "AH_DB_USER": "authentication",
-        "AH_DB_USER_PASSWORD_FILE": "/run/secrets/db-user-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost"
-        ],
-        "timeout": "3s",
-        "interval": "4s",
-        "retries": 15,
-        "start_period": "20s"
-      },
-      "image": "@REGISTRY@/authentication-db:@TAG@",
-      "mem_limit": "805306368",
-      "networks": {
-        "db-authentication": null
-      },
-      "pids_limit": 512,
-      "read_only": true,
-      "restart": "unless-stopped",
-      "secrets": [
-        {
-          "source": "AH_DB_ROOT_AUTHENTICATION",
-          "target": "db-root-password"
         },
-        {
-          "source": "AH_DB_PW_AUTHENTICATION",
-          "target": "db-user-password"
-        }
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "user": "999:999",
-      "volumes": [
         {
           "type": "volume",
-          "source": "authentication-db",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/authentication-db",
-          "target": "/etc/mysql/tls",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/zz-arrowhead-system-user-password.sh",
-          "target": "/docker-entrypoint-initdb.d/zz-arrowhead-system-user-password.sh",
-          "read_only": true,
-          "bind": {}
+          "source": "authentication-state",
+          "target": "/data"
         }
       ]
     },
@@ -427,16 +332,6 @@
         "ALL"
       ],
       "command": null,
-      "depends_on": {
-        "blacklist-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "serviceregistry": {
-          "condition": "service_started",
-          "required": true
-        }
-      },
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -456,8 +351,7 @@
           "aliases": [
             "blacklist"
           ]
-        },
-        "db-blacklist-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -494,6 +388,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "blacklist-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/Blacklist/Blacklist.p12",
           "target": "/certs/Blacklist.p12",
@@ -513,15 +413,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -529,130 +420,20 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "blacklist-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_blacklist",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "blacklist"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-blacklist-java-spring-db:@TAG@",
-      "networks": {
-        "db-blacklist-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_BLACKLIST",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_BLACKLIST",
-          "target": "/run/secrets/db-root-password"
+      "depends_on": {
+        "serviceregistry": {
+          "condition": "service_started",
+          "required": true
         }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "blacklist-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/blacklist-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/blacklist-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/blacklist-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
+      },
+      "restart": "unless-stopped"
     },
     "certificate-authority": {
       "cap_drop": [
         "ALL"
       ],
       "command": null,
-      "depends_on": {
-        "certificate-authority-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "amqp-broker": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "serviceregistry": {
-          "condition": "service_started",
-          "required": true
-        },
-        "blacklist": {
-          "condition": "service_healthy",
-          "required": true
-        }
-      },
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -672,8 +453,7 @@
           "aliases": [
             "certificate-authority"
           ]
-        },
-        "db-certificate-authority-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -711,6 +491,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "certificate-authority-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/CertificateAuthority/CertificateAuthority.p12",
           "target": "/certs/CertificateAuthority.p12",
@@ -723,15 +509,6 @@
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/CertificateAuthority/truststore.p12",
           "target": "/certs/truststore.p12",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
           "read_only": true,
           "bind": {
             "create_host_path": false
@@ -764,117 +541,8 @@
           },
           "read_only": false
         }
-      ]
-    },
-    "certificate-authority-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_certificate_authority",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "certificateauthority"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-certificateauthority-java-spring-db:@TAG@",
-      "networks": {
-        "db-certificate-authority-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_CERTIFICATEAUTHORITY",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_CERTIFICATEAUTHORITY",
-          "target": "/run/secrets/db-root-password"
-        }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "certificate-authority-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/certificate-authority-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/certificate-authority-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/certificate-authority-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
-    },
-    "choreographer": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": null,
       "depends_on": {
-        "choreographer-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
         "amqp-broker": {
           "condition": "service_healthy",
           "required": true
@@ -887,7 +555,13 @@
           "condition": "service_healthy",
           "required": true
         }
-      },
+      }
+    },
+    "choreographer": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -907,8 +581,7 @@
           "aliases": [
             "choreographer"
           ]
-        },
-        "db-choreographer-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -945,6 +618,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "choreographer-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/Choreographer/Choreographer.p12",
           "target": "/certs/Choreographer.p12",
@@ -964,15 +643,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -980,106 +650,22 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "choreographer-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_choreographer",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "choreographer"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-choreographer-java-spring-db:@TAG@",
-      "networks": {
-        "db-choreographer-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_CHOREOGRAPHER",
-          "target": "/run/secrets/db-password"
+      "depends_on": {
+        "amqp-broker": {
+          "condition": "service_healthy",
+          "required": true
         },
-        {
-          "source": "AH_DB_ROOT_CHOREOGRAPHER",
-          "target": "/run/secrets/db-root-password"
+        "serviceregistry": {
+          "condition": "service_started",
+          "required": true
+        },
+        "blacklist": {
+          "condition": "service_healthy",
+          "required": true
         }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "choreographer-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/choreographer-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/choreographer-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/choreographer-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
+      },
+      "restart": "unless-stopped"
     },
     "cloud-monitor-api": {
       "cap_drop": [
@@ -1196,31 +782,14 @@
             "create_host_path": false
           }
         }
-      ]
+      ],
+      "restart": "unless-stopped"
     },
     "configuration": {
       "cap_drop": [
         "ALL"
       ],
       "command": null,
-      "depends_on": {
-        "configuration-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "amqp-broker": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "serviceregistry": {
-          "condition": "service_started",
-          "required": true
-        },
-        "blacklist": {
-          "condition": "service_healthy",
-          "required": true
-        }
-      },
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -1241,8 +810,7 @@
           "aliases": [
             "configuration"
           ]
-        },
-        "db-configuration-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -1279,6 +847,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "configuration-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/Configuration/Configuration.p12",
           "target": "/certs/Configuration.p12",
@@ -1298,15 +872,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -1314,106 +879,22 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "configuration-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_configuration",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "configuration"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-configuration-java-spring-db:@TAG@",
-      "networks": {
-        "db-configuration-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_CONFIGURATION",
-          "target": "/run/secrets/db-password"
+      "depends_on": {
+        "amqp-broker": {
+          "condition": "service_healthy",
+          "required": true
         },
-        {
-          "source": "AH_DB_ROOT_CONFIGURATION",
-          "target": "/run/secrets/db-root-password"
+        "serviceregistry": {
+          "condition": "service_started",
+          "required": true
+        },
+        "blacklist": {
+          "condition": "service_healthy",
+          "required": true
         }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "configuration-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/configuration-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/configuration-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/configuration-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
+      },
+      "restart": "unless-stopped"
     },
     "consumerauthorization": {
       "cap_drop": [
@@ -1421,10 +902,6 @@
       ],
       "command": null,
       "depends_on": {
-        "consumerauthorization-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
         "serviceregistry": {
           "condition": "service_started",
           "required": true
@@ -1456,14 +933,12 @@
         "SPRING_AUTOCONFIGURE_EXCLUDE": "org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration",
         "SPRING_CONFIG_IMPORT": "configtree:/run/secrets/",
         "SPRING_DATASOURCE_PASSWORD": "$${ah.db-password}",
-        "SPRING_DATASOURCE_URL": "jdbc:mariadb://consumerauthorization-db:3306/ah_consumer_authorization?sslMode=verify-full&serverSslCert=/etc/arrowhead/db-tls/ca.crt",
         "SYSMONITOR_ENABLED": "true"
       },
       "image": "@REGISTRY@/consumer-authorization-java:@TAG@",
       "mem_limit": "1073741824",
       "networks": {
-        "arrowhead": null,
-        "db-consumerauthorization": null
+        "arrowhead": null
       },
       "pids_limit": 256,
       "ports": [
@@ -1510,13 +985,6 @@
       "volumes": [
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/etc/arrowhead/db-tls/ca.crt",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/runtime/ConsumerAuthorization/config/certificate",
           "target": "/app/config/certificate",
           "read_only": true,
@@ -1528,94 +996,11 @@
           "target": "/crl",
           "read_only": true,
           "bind": {}
-        }
-      ]
-    },
-    "consumerauthorization-db": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": [
-        "--innodb-use-native-aio=0",
-        "--ssl-ca=/etc/mysql/tls/ca.crt",
-        "--ssl-cert=/etc/mysql/tls/server.crt",
-        "--ssl-key=/etc/mysql/tls/server.key",
-        "--require-secure-transport=ON"
-      ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "AH_DB_USER": "consumerauthorization",
-        "AH_DB_USER_PASSWORD_FILE": "/run/secrets/db-user-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost"
-        ],
-        "timeout": "3s",
-        "interval": "4s",
-        "retries": 15,
-        "start_period": "20s"
-      },
-      "image": "@REGISTRY@/consumer-authorization-db:@TAG@",
-      "mem_limit": "805306368",
-      "networks": {
-        "db-consumerauthorization": null
-      },
-      "pids_limit": 512,
-      "read_only": true,
-      "restart": "unless-stopped",
-      "secrets": [
-        {
-          "source": "AH_DB_ROOT_CONSUMERAUTHORIZATION",
-          "target": "db-root-password"
         },
-        {
-          "source": "AH_DB_PW_CONSUMERAUTHORIZATION",
-          "target": "db-user-password"
-        }
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "user": "999:999",
-      "volumes": [
         {
           "type": "volume",
-          "source": "consumerauthorization-db",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/consumerauthorization-db",
-          "target": "/etc/mysql/tls",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/zz-arrowhead-system-user-password.sh",
-          "target": "/docker-entrypoint-initdb.d/zz-arrowhead-system-user-password.sh",
-          "read_only": true,
-          "bind": {}
+          "source": "consumerauthorization-state",
+          "target": "/data"
         }
       ]
     },
@@ -1624,28 +1009,6 @@
         "ALL"
       ],
       "command": null,
-      "depends_on": {
-        "datamanager-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "amqp-broker": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "consumerauthorization": {
-          "condition": "service_started",
-          "required": true
-        },
-        "serviceregistry": {
-          "condition": "service_started",
-          "required": true
-        },
-        "blacklist": {
-          "condition": "service_healthy",
-          "required": true
-        }
-      },
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -1664,8 +1027,7 @@
           "aliases": [
             "datamanager"
           ]
-        },
-        "db-datamanager-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -1702,6 +1064,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "datamanager-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/DataManager/DataManager.p12",
           "target": "/certs/DataManager.p12",
@@ -1721,15 +1089,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -1737,115 +1096,14 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "datamanager-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_datamanager",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "datamanager"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-datamanager-java-spring-db:@TAG@",
-      "networks": {
-        "db-datamanager-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_DATAMANAGER",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_DATAMANAGER",
-          "target": "/run/secrets/db-root-password"
-        }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "datamanager-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/datamanager-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/datamanager-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/datamanager-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
-    },
-    "device-qos-evaluator": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": null,
       "depends_on": {
-        "device-qos-evaluator-db": {
+        "amqp-broker": {
           "condition": "service_healthy",
+          "required": true
+        },
+        "consumerauthorization": {
+          "condition": "service_started",
           "required": true
         },
         "serviceregistry": {
@@ -1857,10 +1115,18 @@
           "required": true
         }
       },
+      "restart": "unless-stopped"
+    },
+    "device-qos-evaluator": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
         "AMQP_PORT": "5671",
+        "JAVA_TOOL_OPTIONS": "-Xms64m -Xmx256m -XX:MaxMetaspaceSize=192m -XX:MaxDirectMemorySize=128m -Xss512k -XX:NativeMemoryTracking=summary -XX:+ExitOnOutOfMemoryError",
         "LOCAL_CLOUD": "TestCloud",
         "ORGANIZATION": "Company",
         "SERVICE_REGISTRY_ADDRESS": "serviceregistry",
@@ -1879,8 +1145,7 @@
           "aliases": [
             "device-qos-evaluator"
           ]
-        },
-        "db-device-qos-evaluator-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -1917,6 +1182,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "device-qos-evaluator-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/DeviceQoSEvaluator/DeviceQoSEvaluator.p12",
           "target": "/certs/DeviceQoSEvaluator.p12",
@@ -1936,15 +1207,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -1952,106 +1214,18 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "device-qos-evaluator-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_device_qos_evaluator",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "deviceqosevaluator"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-deviceqosevaluator-java-spring-db:@TAG@",
-      "networks": {
-        "db-device-qos-evaluator-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_DEVICEQOSEVALUATOR",
-          "target": "/run/secrets/db-password"
+      "depends_on": {
+        "serviceregistry": {
+          "condition": "service_started",
+          "required": true
         },
-        {
-          "source": "AH_DB_ROOT_DEVICEQOSEVALUATOR",
-          "target": "/run/secrets/db-root-password"
+        "blacklist": {
+          "condition": "service_healthy",
+          "required": true
         }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "device-qos-evaluator-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/device-qos-evaluator-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/device-qos-evaluator-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/device-qos-evaluator-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
+      },
+      "restart": "unless-stopped"
     },
     "docker-proxy": {
       "cap_drop": [
@@ -2061,10 +1235,11 @@
       "entrypoint": null,
       "environment": {
         "COMPOSE_PROJECT_NAME": "@PROJECT@",
+        "JAVA_TOOL_OPTIONS": "-Xms32m -Xmx96m -XX:MaxMetaspaceSize=80m -Xss512k -XX:+ExitOnOutOfMemoryError",
         "MANAGED_SERVICES": "serviceregistry,serviceorchestration-dynamic,serviceorchestration-simple,consumerauthorization,authentication,blacklist,translation-manager,device-qos-evaluator,onboarding,datamanager,graphdbmanager,timemanager,eventhandler,plantdescriptionengine,configuration,choreographer,random-data-producer,sysmonitor,aigym,certificate-authority,mqtt-broker,amqp-broker,gatekeeper,gatetunnel"
       },
       "image": "@REGISTRY@/ah5-localcloudmanager-java-spring-docker-proxy:@TAG@",
-      "mem_limit": "201326592",
+      "mem_limit": "268435456",
       "networks": {
         "console-docker": null
       },
@@ -2087,35 +1262,14 @@
             "create_host_path": false
           }
         }
-      ]
+      ],
+      "restart": "unless-stopped"
     },
     "eventhandler": {
       "cap_drop": [
         "ALL"
       ],
       "command": null,
-      "depends_on": {
-        "eventhandler-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "amqp-broker": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "consumerauthorization": {
-          "condition": "service_started",
-          "required": true
-        },
-        "serviceregistry": {
-          "condition": "service_started",
-          "required": true
-        },
-        "blacklist": {
-          "condition": "service_healthy",
-          "required": true
-        }
-      },
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -2135,8 +1289,7 @@
           "aliases": [
             "eventhandler"
           ]
-        },
-        "db-eventhandler-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -2173,6 +1326,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "eventhandler-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/EventHandler/EventHandler.p12",
           "target": "/certs/EventHandler.p12",
@@ -2192,15 +1351,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -2208,118 +1358,13 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "eventhandler-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_eventhandler",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "eventhandler"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-eventhandler-java-spring-db:@TAG@",
-      "networks": {
-        "db-eventhandler-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_EVENTHANDLER",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_EVENTHANDLER",
-          "target": "/run/secrets/db-root-password"
-        }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "eventhandler-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/eventhandler-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/eventhandler-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/eventhandler-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
-    },
-    "gatekeeper": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": null,
       "depends_on": {
-        "gatekeeper-db": {
+        "amqp-broker": {
           "condition": "service_healthy",
           "required": true
         },
-        "authentication": {
+        "consumerauthorization": {
           "condition": "service_started",
           "required": true
         },
@@ -2332,6 +1377,13 @@
           "required": true
         }
       },
+      "restart": "unless-stopped"
+    },
+    "gatekeeper": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -2360,8 +1412,7 @@
           "aliases": [
             "gatekeeper"
           ]
-        },
-        "db-gatekeeper-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -2399,6 +1450,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "gatekeeper-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/Gatekeeper/Gatekeeper.p12",
           "target": "/certs/Gatekeeper.p12",
@@ -2411,15 +1468,6 @@
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/Gatekeeper/truststore.p12",
           "target": "/certs/truststore.p12",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
           "read_only": true,
           "bind": {
             "create_host_path": false
@@ -2470,120 +1518,8 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "gatekeeper-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_gatekeeper",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "gatekeeper",
-        "RELAY_CRL_FILE": "/org-crl/ca.crl",
-        "GATEKEEPER_RELAY_ENABLED": "false"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-gatekeeper-java-spring-db:@TAG@",
-      "networks": {
-        "db-gatekeeper-db": null
-      },
-      "restart": "unless-stopped",
-      "secrets": [
-        {
-          "source": "AH_DB_PW_GATEKEEPER",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_GATEKEEPER",
-          "target": "/run/secrets/db-root-password"
-        }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "gatekeeper-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/gatekeeper-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/gatekeeper-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/gatekeeper-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
-    },
-    "gatetunnel": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": null,
       "depends_on": {
-        "gatetunnel-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
         "authentication": {
           "condition": "service_started",
           "required": true
@@ -2596,7 +1532,13 @@
           "condition": "service_healthy",
           "required": true
         }
-      },
+      }
+    },
+    "gatetunnel": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
       "entrypoint": null,
       "environment": {
         "ADVERTISED_ADDRESS": "gatetunnel",
@@ -2631,8 +1573,7 @@
           "aliases": [
             "gatetunnel"
           ]
-        },
-        "db-gatetunnel-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -2670,6 +1611,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "gatetunnel-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/GateTunnel/GateTunnel.p12",
           "target": "/certs/GateTunnel.p12",
@@ -2682,15 +1629,6 @@
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/GateTunnel/truststore.p12",
           "target": "/certs/truststore.p12",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
           "read_only": true,
           "bind": {
             "create_host_path": false
@@ -2741,125 +1679,9 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "gatetunnel-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_gatetunnel",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "gatetunnel",
-        "RELAY_CRL_FILE": "/org-crl/ca.crl",
-        "RELAY_CRL_FILES": "/org-crl/ca.crl"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-gatetunnel-java-spring-db:@TAG@",
-      "networks": {
-        "db-gatetunnel-db": null
-      },
-      "restart": "unless-stopped",
-      "secrets": [
-        {
-          "source": "AH_DB_PW_GATETUNNEL",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_GATETUNNEL",
-          "target": "/run/secrets/db-root-password"
-        }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "gatetunnel-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/gatetunnel-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/gatetunnel-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/gatetunnel-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
-    },
-    "graphdbmanager": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": null,
       "depends_on": {
-        "graphdbmanager-graphdb": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "amqp-broker": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "consumerauthorization": {
+        "authentication": {
           "condition": "service_started",
           "required": true
         },
@@ -2871,12 +1693,17 @@
           "condition": "service_healthy",
           "required": true
         }
-      },
+      }
+    },
+    "graphdbmanager": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
         "AMQP_PORT": "5671",
-        "GRAPHDB_URL": "http://graphdbmanager-graphdb:7200",
         "LOCAL_CLOUD": "TestCloud",
         "ORGANIZATION": "Company",
         "SERVICE_REGISTRY_ADDRESS": "serviceregistry",
@@ -2891,8 +1718,7 @@
           "aliases": [
             "graphdbmanager"
           ]
-        },
-        "db-graphdbmanager-graphdb": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -2913,10 +1739,6 @@
         {
           "source": "AH_PW_GDM",
           "target": "ah.identity-password"
-        },
-        {
-          "source": "AH_GRAPHDB_PW_GRAPHDBMANAGER",
-          "target": "ah.graphdb-password"
         }
       ],
       "security_opt": [
@@ -2928,6 +1750,12 @@
       ],
       "user": "10001:10001",
       "volumes": [
+        {
+          "type": "volume",
+          "source": "graphdbmanager-state",
+          "target": "/data",
+          "volume": {}
+        },
         {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/GraphDBManager/GraphDBManager.p12",
@@ -2955,53 +1783,26 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "graphdbmanager-graphdb": {
-      "cap_drop": [
-        "ALL"
       ],
-      "command": null,
-      "entrypoint": null,
-      "environment": {
-        "GDB_HEAP_SIZE": "768m",
-        "GRAPHDB_ADMIN_PASSWORD_FILE": "/run/secrets/graphdb-admin-password",
-        "GRAPHDB_REPOSITORY": "graphdbmanager",
-        "GRAPHDB_USER": "graphdbmanager",
-        "GRAPHDB_USER_PASSWORD_FILE": "/run/secrets/graphdb-password"
-      },
-      "image": "@REGISTRY@/ah5-graphdbmanager-java-spring-graphdb:@TAG@",
-      "mem_limit": "1610612736",
-      "networks": {
-        "db-graphdbmanager-graphdb": null
-      },
-      "pids_limit": 512,
-      "read_only": true,
-      "secrets": [
-        {
-          "source": "AH_GRAPHDB_ADMIN_GRAPHDBMANAGER",
-          "target": "/run/secrets/graphdb-admin-password"
+      "depends_on": {
+        "amqp-broker": {
+          "condition": "service_healthy",
+          "required": true
         },
-        {
-          "source": "AH_GRAPHDB_PW_GRAPHDBMANAGER",
-          "target": "/run/secrets/graphdb-password"
+        "consumerauthorization": {
+          "condition": "service_started",
+          "required": true
+        },
+        "serviceregistry": {
+          "condition": "service_started",
+          "required": true
+        },
+        "blacklist": {
+          "condition": "service_healthy",
+          "required": true
         }
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "tmpfs": [
-        "/tmp:rw,nosuid,nodev,size=128m,mode=1777"
-      ],
-      "user": "10001:10001",
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "graphdbmanager-graphdb-state",
-          "target": "/opt/graphdb/home",
-          "volume": {}
-        }
-      ]
+      },
+      "restart": "unless-stopped"
     },
     "mqtt-broker": {
       "cap_drop": [
@@ -3103,20 +1904,6 @@
         "ALL"
       ],
       "command": null,
-      "depends_on": {
-        "onboarding-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "serviceregistry": {
-          "condition": "service_started",
-          "required": true
-        },
-        "blacklist": {
-          "condition": "service_healthy",
-          "required": true
-        }
-      },
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -3135,8 +1922,7 @@
           "aliases": [
             "onboarding"
           ]
-        },
-        "db-onboarding-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -3173,6 +1959,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "onboarding-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/Onboarding/Onboarding.p12",
           "target": "/certs/Onboarding.p12",
@@ -3185,15 +1977,6 @@
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/Onboarding/truststore.p12",
           "target": "/certs/truststore.p12",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
           "read_only": true,
           "bind": {
             "create_host_path": false
@@ -3217,125 +2000,8 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "onboarding-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_onboarding",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "onboarding"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-onboarding-java-spring-db:@TAG@",
-      "networks": {
-        "db-onboarding-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_ONBOARDING",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_ONBOARDING",
-          "target": "/run/secrets/db-root-password"
-        }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "onboarding-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/onboarding-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/onboarding-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/onboarding-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
-    },
-    "plantdescriptionengine": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": null,
       "depends_on": {
-        "plantdescriptionengine-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "amqp-broker": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "consumerauthorization": {
-          "condition": "service_started",
-          "required": true
-        },
         "serviceregistry": {
           "condition": "service_started",
           "required": true
@@ -3345,6 +2011,13 @@
           "required": true
         }
       },
+      "restart": "unless-stopped"
+    },
+    "plantdescriptionengine": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -3366,8 +2039,7 @@
           "aliases": [
             "plantdescriptionengine"
           ]
-        },
-        "db-plantdescriptionengine-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -3404,6 +2076,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "plantdescriptionengine-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/PlantDescriptionEngine/PlantDescriptionEngine.p12",
           "target": "/certs/PlantDescriptionEngine.p12",
@@ -3423,15 +2101,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -3439,106 +2108,26 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "plantdescriptionengine-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_plantdescriptionengine",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "plantdescriptionengine"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-plantdescriptionengine-java-spring-db:@TAG@",
-      "networks": {
-        "db-plantdescriptionengine-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_PLANTDESCRIPTIONENGINE",
-          "target": "/run/secrets/db-password"
+      "depends_on": {
+        "amqp-broker": {
+          "condition": "service_healthy",
+          "required": true
         },
-        {
-          "source": "AH_DB_ROOT_PLANTDESCRIPTIONENGINE",
-          "target": "/run/secrets/db-root-password"
+        "consumerauthorization": {
+          "condition": "service_started",
+          "required": true
+        },
+        "serviceregistry": {
+          "condition": "service_started",
+          "required": true
+        },
+        "blacklist": {
+          "condition": "service_healthy",
+          "required": true
         }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "plantdescriptionengine-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/plantdescriptionengine-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/plantdescriptionengine-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/plantdescriptionengine-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
+      },
+      "restart": "unless-stopped"
     },
     "random-data-producer": {
       "cap_drop": [
@@ -3647,10 +2236,6 @@
       ],
       "command": null,
       "depends_on": {
-        "serviceorchestration-dynamic-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
         "serviceregistry": {
           "condition": "service_started",
           "required": true
@@ -3682,14 +2267,12 @@
         "SPRING_AUTOCONFIGURE_EXCLUDE": "org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration",
         "SPRING_CONFIG_IMPORT": "configtree:/run/secrets/",
         "SPRING_DATASOURCE_PASSWORD": "$${ah.db-password}",
-        "SPRING_DATASOURCE_URL": "jdbc:mariadb://serviceorchestration-dynamic-db:3306/ah_serviceorchestration_dynamic?sslMode=verify-full&serverSslCert=/etc/arrowhead/db-tls/ca.crt",
         "SYSMONITOR_ENABLED": "true"
       },
       "image": "@REGISTRY@/serviceorchestration-dynamic-java:@TAG@",
       "mem_limit": "1073741824",
       "networks": {
-        "arrowhead": null,
-        "db-serviceorchestration-dynamic": null
+        "arrowhead": null
       },
       "pids_limit": 256,
       "ports": [
@@ -3728,13 +2311,6 @@
       "volumes": [
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/etc/arrowhead/db-tls/ca.crt",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/runtime/DynamicServiceOrchestration/config/certificate",
           "target": "/app/config/certificate",
           "read_only": true,
@@ -3746,101 +2322,11 @@
           "target": "/crl",
           "read_only": true,
           "bind": {}
-        }
-      ]
-    },
-    "serviceorchestration-dynamic-db": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": [
-        "--innodb-use-native-aio=0",
-        "--ssl-ca=/etc/mysql/tls/ca.crt",
-        "--ssl-cert=/etc/mysql/tls/server.crt",
-        "--ssl-key=/etc/mysql/tls/server.key",
-        "--require-secure-transport=ON"
-      ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "AH_DB_USER": "serviceorchestration-dynamic",
-        "AH_DB_USER_PASSWORD_FILE": "/run/secrets/db-user-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost"
-        ],
-        "timeout": "3s",
-        "interval": "4s",
-        "retries": 15,
-        "start_period": "20s"
-      },
-      "image": "@REGISTRY@/serviceorchestration-dynamic-db:@TAG@",
-      "mem_limit": "805306368",
-      "networks": {
-        "db-serviceorchestration-dynamic": null
-      },
-      "pids_limit": 512,
-      "read_only": true,
-      "restart": "unless-stopped",
-      "secrets": [
-        {
-          "source": "AH_DB_ROOT_DYNAMICSERVICEORCHESTRATION",
-          "target": "db-root-password"
         },
-        {
-          "source": "AH_DB_PW_DYNAMICSERVICEORCHESTRATION",
-          "target": "db-user-password"
-        }
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "user": "999:999",
-      "volumes": [
         {
           "type": "volume",
-          "source": "serviceorchestration-dynamic-db",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/zy-dso-plant-rules.sql",
-          "target": "/docker-entrypoint-initdb.d/zy-dso-plant-rules.sql",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/serviceorchestration-dynamic-db",
-          "target": "/etc/mysql/tls",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/zz-arrowhead-system-user-password.sh",
-          "target": "/docker-entrypoint-initdb.d/zz-arrowhead-system-user-password.sh",
-          "read_only": true,
-          "bind": {}
+          "source": "serviceorchestration-dynamic-state",
+          "target": "/data"
         }
       ]
     },
@@ -3850,10 +2336,6 @@
       ],
       "command": null,
       "depends_on": {
-        "serviceorchestration-simple-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
         "serviceregistry": {
           "condition": "service_started",
           "required": true
@@ -3886,14 +2368,12 @@
         "SPRING_AUTOCONFIGURE_EXCLUDE": "org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration",
         "SPRING_CONFIG_IMPORT": "configtree:/run/secrets/",
         "SPRING_DATASOURCE_PASSWORD": "$${ah.db-password}",
-        "SPRING_DATASOURCE_URL": "jdbc:mariadb://serviceorchestration-simple-db:3306/ah_serviceorchestration_simple?sslMode=verify-full&serverSslCert=/etc/arrowhead/db-tls/ca.crt",
         "SYSMONITOR_ENABLED": "true"
       },
       "image": "@REGISTRY@/serviceorchestration-simple-java:@TAG@",
       "mem_limit": "1073741824",
       "networks": {
-        "arrowhead": null,
-        "db-serviceorchestration-simple": null
+        "arrowhead": null
       },
       "pids_limit": 256,
       "ports": [
@@ -3932,13 +2412,6 @@
       "volumes": [
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/etc/arrowhead/db-tls/ca.crt",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/runtime/SimpleStoreServiceOrchestration/config/certificate",
           "target": "/app/config/certificate",
           "read_only": true,
@@ -3950,94 +2423,11 @@
           "target": "/crl",
           "read_only": true,
           "bind": {}
-        }
-      ]
-    },
-    "serviceorchestration-simple-db": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": [
-        "--innodb-use-native-aio=0",
-        "--ssl-ca=/etc/mysql/tls/ca.crt",
-        "--ssl-cert=/etc/mysql/tls/server.crt",
-        "--ssl-key=/etc/mysql/tls/server.key",
-        "--require-secure-transport=ON"
-      ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "AH_DB_USER": "serviceorchestration-simple",
-        "AH_DB_USER_PASSWORD_FILE": "/run/secrets/db-user-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost"
-        ],
-        "timeout": "3s",
-        "interval": "4s",
-        "retries": 15,
-        "start_period": "20s"
-      },
-      "image": "@REGISTRY@/serviceorchestration-simple-db:@TAG@",
-      "mem_limit": "805306368",
-      "networks": {
-        "db-serviceorchestration-simple": null
-      },
-      "pids_limit": 512,
-      "read_only": true,
-      "restart": "unless-stopped",
-      "secrets": [
-        {
-          "source": "AH_DB_ROOT_SIMPLESTORESERVICEORCHESTRATION",
-          "target": "db-root-password"
         },
-        {
-          "source": "AH_DB_PW_SIMPLESTORESERVICEORCHESTRATION",
-          "target": "db-user-password"
-        }
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "user": "999:999",
-      "volumes": [
         {
           "type": "volume",
-          "source": "serviceorchestration-simple-db",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/serviceorchestration-simple-db",
-          "target": "/etc/mysql/tls",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/zz-arrowhead-system-user-password.sh",
-          "target": "/docker-entrypoint-initdb.d/zz-arrowhead-system-user-password.sh",
-          "read_only": true,
-          "bind": {}
+          "source": "serviceorchestration-simple-state",
+          "target": "/data"
         }
       ]
     },
@@ -4046,12 +2436,7 @@
         "ALL"
       ],
       "command": null,
-      "depends_on": {
-        "serviceregistry-db": {
-          "condition": "service_healthy",
-          "required": true
-        }
-      },
+      "depends_on": {},
       "entrypoint": null,
       "environment": {
         "ARROWHEAD_SSL_CRL_FILE": "/crl/ca.crl",
@@ -4064,7 +2449,7 @@
         "FORCE_BLACKLIST_FILTER": "true",
         "JAVA_TOOL_OPTIONS": "-Xms64m -Xmx256m",
         "LOG4J_CONFIGURATION_FILE": "/app/config/log4j2.xml",
-        "MANAGEMENT_POLICY": "whitelist",
+        "MANAGEMENT_POLICY": "authorization",
         "MANAGEMENT_WHITELIST": "Authentication,LocalCloudManager,DynamicServiceOrchestration,DeviceQoSEvaluator,PlantDescriptionEngine,Onboarding",
         "SERVER_SSL_CLIENT_AUTH": "need",
         "SERVER_SSL_ENABLED": "true",
@@ -4079,7 +2464,6 @@
         "SPRING_AUTOCONFIGURE_EXCLUDE": "org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration",
         "SPRING_CONFIG_IMPORT": "configtree:/run/secrets/",
         "SPRING_DATASOURCE_PASSWORD": "$${ah.db-password}",
-        "SPRING_DATASOURCE_URL": "jdbc:mariadb://serviceregistry-db:3306/ah_serviceregistry?sslMode=verify-full&serverSslCert=/etc/arrowhead/db-tls/ca.crt",
         "SYSMONITOR_ENABLED": "true",
         "SYSMONITOR_SSL_KEY_STORE": "file:/app/config/certificate/ServiceRegistry.p12",
         "SYSMONITOR_SSL_KEY_STORE_PASSWORD": "$${ah.store-password}",
@@ -4100,8 +2484,7 @@
       "image": "@REGISTRY@/serviceregistry-java:@TAG@",
       "mem_limit": "1073741824",
       "networks": {
-        "arrowhead": null,
-        "db-serviceregistry": null
+        "arrowhead": null
       },
       "pids_limit": 256,
       "ports": [
@@ -4144,13 +2527,6 @@
       "volumes": [
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/etc/arrowhead/db-tls/ca.crt",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/runtime/ServiceRegistry/config/certificate",
           "target": "/app/config/certificate",
           "read_only": true,
@@ -4162,357 +2538,19 @@
           "target": "/crl",
           "read_only": true,
           "bind": {}
-        }
-      ]
-    },
-    "serviceregistry-db": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": [
-        "--innodb-use-native-aio=0",
-        "--ssl-ca=/etc/mysql/tls/ca.crt",
-        "--ssl-cert=/etc/mysql/tls/server.crt",
-        "--ssl-key=/etc/mysql/tls/server.key",
-        "--require-secure-transport=ON"
-      ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "AH_DB_USER": "serviceregistry",
-        "AH_DB_USER_PASSWORD_FILE": "/run/secrets/db-user-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost"
-        ],
-        "timeout": "3s",
-        "interval": "4s",
-        "retries": 15,
-        "start_period": "20s"
-      },
-      "image": "@REGISTRY@/serviceregistry-db:@TAG@",
-      "mem_limit": "805306368",
-      "networks": {
-        "db-serviceregistry": null
-      },
-      "pids_limit": 512,
-      "read_only": true,
-      "restart": "unless-stopped",
-      "secrets": [
-        {
-          "source": "AH_DB_ROOT_SERVICEREGISTRY",
-          "target": "db-root-password"
         },
-        {
-          "source": "AH_DB_PW_SERVICEREGISTRY",
-          "target": "db-user-password"
-        }
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "user": "999:999",
-      "volumes": [
         {
           "type": "volume",
-          "source": "serviceregistry-db",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/serviceregistry-db",
-          "target": "/etc/mysql/tls",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/zy-serviceregistry-amqp-templates.sql",
-          "target": "/docker-entrypoint-initdb.d/zy-serviceregistry-amqp-templates.sql",
-          "read_only": true,
-          "bind": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/zz-arrowhead-system-user-password.sh",
-          "target": "/docker-entrypoint-initdb.d/zz-arrowhead-system-user-password.sh",
-          "read_only": true,
-          "bind": {}
+          "source": "serviceregistry-state",
+          "target": "/data"
         }
       ]
-    },
-    "solocalcloudconfigurator": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": null,
-      "depends_on": {
-        "solocalcloudconfigurator-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "serviceregistry": {
-          "condition": "service_started",
-          "required": true
-        },
-        "blacklist": {
-          "condition": "service_healthy",
-          "required": true
-        }
-      },
-      "entrypoint": null,
-      "environment": {
-        "AMQP_HOST": "amqp-broker",
-        "AMQP_PORT": "5671",
-        "LOCAL_CLOUD": "TestCloud",
-        "ORGANIZATION": "Company",
-        "SERVICE_REGISTRY_ADDRESS": "serviceregistry",
-        "SERVICE_REGISTRY_PORT": "8443",
-        "SOLC_API_WHITELIST": "",
-        "SOLC_SOURCE_COMMIT": "93bbb47975646ccc212e05ff7f616fbd69d06ce3",
-        "SOLC_SOURCE_REPOSITORY": "https://github.com/jerkerdelsing/Eclipse-Arrowhead-java.git",
-        "SYSMONITOR_ENABLED": "true"
-      },
-      "image": "@REGISTRY@/ah5-solocalcloudconfigurator-java:@TAG@",
-      "mem_limit": "805306368",
-      "networks": {
-        "arrowhead": {
-          "aliases": [
-            "solocalcloudconfigurator"
-          ]
-        },
-        "db-solocalcloudconfigurator-db": {}
-      },
-      "pids_limit": 256,
-      "ports": [
-        {
-          "mode": "ingress",
-          "host_ip": "127.0.0.1",
-          "target": 8496,
-          "published": "8496",
-          "protocol": "tcp"
-        }
-      ],
-      "read_only": true,
-      "secrets": [
-        {
-          "source": "AH_STORE_PW_SOLC",
-          "target": "ah.store-password"
-        },
-        {
-          "source": "AH_PW_SOLC",
-          "target": "ah.identity-password"
-        },
-        {
-          "source": "AH_DB_PW_SOLOCALCLOUDCONFIGURATOR",
-          "target": "ah.db-password"
-        }
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "tmpfs": [
-        "/tmp:rw,noexec,nosuid,nodev,size=128m,mode=1777",
-        "/app/logs:rw,noexec,nosuid,nodev,size=32m,mode=1777"
-      ],
-      "user": "10001:10001",
-      "volumes": [
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/primary-stores/SoLocalCloudConfigurator/SoLocalCloudConfigurator.p12",
-          "target": "/certs/SoLocalCloudConfigurator.p12",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/primary-stores/SoLocalCloudConfigurator/truststore.p12",
-          "target": "/certs/truststore.p12",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/crl",
-          "target": "/crl",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ]
-    },
-    "solocalcloudconfigurator-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON",
-        "--max-allowed-packet=64M"
-      ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_solocalcloudconfigurator",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "solocalcloudconfigurator"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-solocalcloudconfigurator-java-db:@TAG@",
-      "networks": {
-        "db-solocalcloudconfigurator-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_SOLOCALCLOUDCONFIGURATOR",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_SOLOCALCLOUDCONFIGURATOR",
-          "target": "/run/secrets/db-root-password"
-        }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "solocalcloudconfigurator-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/solocalcloudconfigurator-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/solocalcloudconfigurator-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/solocalcloudconfigurator-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
     },
     "sysmonitor": {
       "cap_drop": [
         "ALL"
       ],
       "command": null,
-      "depends_on": {
-        "sysmonitor-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "amqp-broker": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "authentication": {
-          "condition": "service_started",
-          "required": true
-        },
-        "consumerauthorization": {
-          "condition": "service_started",
-          "required": true
-        },
-        "mqtt-broker": {
-          "condition": "service_healthy",
-          "required": true
-        },
-        "serviceorchestration-dynamic": {
-          "condition": "service_started",
-          "required": true
-        },
-        "serviceregistry": {
-          "condition": "service_started",
-          "required": true
-        },
-        "blacklist": {
-          "condition": "service_healthy",
-          "required": true
-        }
-      },
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -4536,8 +2574,7 @@
           "aliases": [
             "sysmonitor"
           ]
-        },
-        "db-sysmonitor-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -4575,6 +2612,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "sysmonitor-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/SysMonitor/SysMonitor.p12",
           "target": "/certs/SysMonitor.p12",
@@ -4594,15 +2637,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -4610,122 +2644,25 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "sysmonitor-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_sysmonitor",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "sysmonitor"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-sysmonitor-java-spring-db:@TAG@",
-      "networks": {
-        "db-sysmonitor-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_SYSMONITOR",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_SYSMONITOR",
-          "target": "/run/secrets/db-root-password"
-        }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "sysmonitor-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/sysmonitor-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/sysmonitor-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/sysmonitor-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
-    },
-    "timemanager": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": null,
       "depends_on": {
-        "timemanager-db": {
-          "condition": "service_healthy",
-          "required": true
-        },
         "amqp-broker": {
           "condition": "service_healthy",
           "required": true
         },
+        "authentication": {
+          "condition": "service_started",
+          "required": true
+        },
         "consumerauthorization": {
+          "condition": "service_started",
+          "required": true
+        },
+        "mqtt-broker": {
+          "condition": "service_healthy",
+          "required": true
+        },
+        "serviceorchestration-dynamic": {
           "condition": "service_started",
           "required": true
         },
@@ -4737,7 +2674,13 @@
           "condition": "service_healthy",
           "required": true
         }
-      },
+      }
+    },
+    "timemanager": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -4759,8 +2702,7 @@
           "aliases": [
             "timemanager"
           ]
-        },
-        "db-timemanager-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -4797,6 +2739,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "timemanager-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/TimeManager/TimeManager.p12",
           "target": "/certs/TimeManager.p12",
@@ -4816,15 +2764,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -4832,115 +2771,14 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "timemanager-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_timemanager",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "timemanager"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-timemanager-java-spring-db:@TAG@",
-      "networks": {
-        "db-timemanager-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_TIMEMANAGER",
-          "target": "/run/secrets/db-password"
-        },
-        {
-          "source": "AH_DB_ROOT_TIMEMANAGER",
-          "target": "/run/secrets/db-root-password"
-        }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "timemanager-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/timemanager-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/timemanager-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/timemanager-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
-    },
-    "translation-manager": {
-      "cap_drop": [
-        "ALL"
-      ],
-      "command": null,
       "depends_on": {
-        "translation-manager-db": {
+        "amqp-broker": {
           "condition": "service_healthy",
+          "required": true
+        },
+        "consumerauthorization": {
+          "condition": "service_started",
           "required": true
         },
         "serviceregistry": {
@@ -4952,6 +2790,13 @@
           "required": true
         }
       },
+      "restart": "unless-stopped"
+    },
+    "translation-manager": {
+      "cap_drop": [
+        "ALL"
+      ],
+      "command": null,
       "entrypoint": null,
       "environment": {
         "AMQP_HOST": "amqp-broker",
@@ -4974,8 +2819,7 @@
           "aliases": [
             "translation-manager"
           ]
-        },
-        "db-translation-manager-db": {}
+        }
       },
       "pids_limit": 256,
       "ports": [
@@ -5012,6 +2856,12 @@
       "user": "10001:10001",
       "volumes": [
         {
+          "type": "volume",
+          "source": "translation-manager-state",
+          "target": "/data",
+          "volume": {}
+        },
+        {
           "type": "bind",
           "source": "@CLOUD_DIR@/security/primary-stores/TranslationManager/TranslationManager.p12",
           "target": "/certs/TranslationManager.p12",
@@ -5031,15 +2881,6 @@
         },
         {
           "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/ca.crt",
-          "target": "/certs/db-ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
           "source": "@CLOUD_DIR@/security/crl",
           "target": "/crl",
           "read_only": true,
@@ -5047,106 +2888,18 @@
             "create_host_path": false
           }
         }
-      ]
-    },
-    "translation-manager-db": {
-      "command": [
-        "mysqld",
-        "--ssl-ca=/tls/ca.crt",
-        "--ssl-cert=/tls/db.crt",
-        "--ssl-key=/tls/db.key",
-        "--require-secure-transport=ON"
       ],
-      "entrypoint": [
-        "/usr/local/bin/ah-db-entrypoint.sh"
-      ],
-      "environment": {
-        "MYSQL_DATABASE": "ah_translation_manager",
-        "MYSQL_PASSWORD_FILE": "/run/secrets/db-password",
-        "MYSQL_ROOT_PASSWORD_FILE": "/run/secrets/db-root-password",
-        "MYSQL_USER": "translationmanager"
-      },
-      "healthcheck": {
-        "test": [
-          "CMD-SHELL",
-          "mysqladmin ping --protocol=tcp -h127.0.0.1 --silent"
-        ],
-        "timeout": "4s",
-        "interval": "5s",
-        "retries": 30
-      },
-      "image": "@REGISTRY@/ah5-translationmanager-java-spring-db:@TAG@",
-      "networks": {
-        "db-translation-manager-db": null
-      },
-      "secrets": [
-        {
-          "source": "AH_DB_PW_TRANSLATIONMANAGER",
-          "target": "/run/secrets/db-password"
+      "depends_on": {
+        "serviceregistry": {
+          "condition": "service_started",
+          "required": true
         },
-        {
-          "source": "AH_DB_ROOT_TRANSLATIONMANAGER",
-          "target": "/run/secrets/db-root-password"
+        "blacklist": {
+          "condition": "service_healthy",
+          "required": true
         }
-      ],
-      "volumes": [
-        {
-          "type": "volume",
-          "source": "translation-manager-db-state",
-          "target": "/var/lib/mysql",
-          "volume": {}
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/translation-manager-db/ca.crt",
-          "target": "/tls/ca.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/translation-manager-db/server.crt",
-          "target": "/tls/db.crt",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/security/x509/db/translation-manager-db/server.key",
-          "target": "/tls/db.key",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        },
-        {
-          "type": "bind",
-          "source": "@CLOUD_DIR@/db/mysql-entrypoint.sh",
-          "target": "/usr/local/bin/ah-db-entrypoint.sh",
-          "read_only": true,
-          "bind": {
-            "create_host_path": false
-          }
-        }
-      ],
-      "user": "999:999",
-      "read_only": true,
-      "tmpfs": [
-        "/var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999,mode=0750,size=1m",
-        "/tmp:rw,nosuid,nodev,mode=1777,size=64m"
-      ],
-      "cap_drop": [
-        "ALL"
-      ],
-      "security_opt": [
-        "no-new-privileges:true"
-      ],
-      "mem_limit": "805306368",
-      "pids_limit": 512
+      },
+      "restart": "unless-stopped"
     }
   },
   "networks": {
@@ -5164,308 +2917,74 @@
         ]
       },
       "internal": true
-    },
-    "db-authentication": {
-      "name": "@PROJECT@_db-authentication",
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.1.0/28"
-          }
-        ]
-      },
-      "internal": true
-    },
-    "db-consumerauthorization": {
-      "name": "@PROJECT@_db-consumerauthorization",
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.6.0/28"
-          }
-        ]
-      },
-      "internal": true
-    },
-    "db-serviceorchestration-dynamic": {
-      "name": "@PROJECT@_db-serviceorchestration-dynamic",
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.16.0/28"
-          }
-        ]
-      },
-      "internal": true
-    },
-    "db-serviceorchestration-simple": {
-      "name": "@PROJECT@_db-serviceorchestration-simple",
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.17.0/28"
-          }
-        ]
-      },
-      "internal": true
-    },
-    "db-serviceregistry": {
-      "name": "@PROJECT@_db-serviceregistry",
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.18.0/28"
-          }
-        ]
-      },
-      "internal": true
-    },
-    "db-blacklist-db": {
-      "name": "@PROJECT@_db-blacklist-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.2.0/28"
-          }
-        ]
-      }
-    },
-    "db-certificate-authority-db": {
-      "name": "@PROJECT@_db-certificate-authority-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.3.0/28"
-          }
-        ]
-      }
-    },
-    "db-choreographer-db": {
-      "name": "@PROJECT@_db-choreographer-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.4.0/28"
-          }
-        ]
-      }
-    },
-    "db-configuration-db": {
-      "name": "@PROJECT@_db-configuration-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.5.0/28"
-          }
-        ]
-      }
-    },
-    "db-datamanager-db": {
-      "name": "@PROJECT@_db-datamanager-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.7.0/28"
-          }
-        ]
-      }
-    },
-    "db-device-qos-evaluator-db": {
-      "name": "@PROJECT@_db-device-qos-evaluator-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.8.0/28"
-          }
-        ]
-      }
-    },
-    "db-eventhandler-db": {
-      "name": "@PROJECT@_db-eventhandler-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.9.0/28"
-          }
-        ]
-      }
-    },
-    "db-gatetunnel-db": {
-      "name": "@PROJECT@_db-gatetunnel-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.11.0/28"
-          }
-        ]
-      }
-    },
-    "db-gatekeeper-db": {
-      "name": "@PROJECT@_db-gatekeeper-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.10.0/28"
-          }
-        ]
-      }
-    },
-    "db-graphdbmanager-graphdb": {
-      "name": "@PROJECT@_db-graphdbmanager-graphdb",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.12.0/28"
-          }
-        ]
-      }
-    },
-    "db-onboarding-db": {
-      "name": "@PROJECT@_db-onboarding-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.14.0/28"
-          }
-        ]
-      }
-    },
-    "db-plantdescriptionengine-db": {
-      "name": "@PROJECT@_db-plantdescriptionengine-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.15.0/28"
-          }
-        ]
-      }
-    },
-    "db-solocalcloudconfigurator-db": {
-      "name": "@PROJECT@_db-solocalcloudconfigurator-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.30.0/28"
-          }
-        ]
-      }
-    },
-    "db-sysmonitor-db": {
-      "name": "@PROJECT@_db-sysmonitor-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.19.0/28"
-          }
-        ]
-      }
-    },
-    "db-timemanager-db": {
-      "name": "@PROJECT@_db-timemanager-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.20.0/28"
-          }
-        ]
-      }
-    },
-    "db-translation-manager-db": {
-      "name": "@PROJECT@_db-translation-manager-db",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "10.253.21.0/28"
-          }
-        ]
-      }
     }
   },
   "volumes": {
     "amqp-data": {
       "name": "@PROJECT@_amqp-data"
     },
-    "authentication-db": {
-      "name": "@PROJECT@_authentication-db"
+    "authentication-state": {
+      "name": "@PROJECT@_authentication-state"
     },
-    "blacklist-db-state": {
-      "name": "@PROJECT@_blacklist-db-state"
+    "blacklist-state": {
+      "name": "@PROJECT@_blacklist-state"
     },
-    "certificate-authority-db-state": {
-      "name": "@PROJECT@_certificate-authority-db-state"
+    "certificate-authority-state": {
+      "name": "@PROJECT@_certificate-authority-state"
     },
-    "choreographer-db-state": {
-      "name": "@PROJECT@_choreographer-db-state"
+    "choreographer-state": {
+      "name": "@PROJECT@_choreographer-state"
     },
-    "configuration-db-state": {
-      "name": "@PROJECT@_configuration-db-state"
+    "configuration-state": {
+      "name": "@PROJECT@_configuration-state"
     },
-    "consumerauthorization-db": {
-      "name": "@PROJECT@_consumerauthorization-db"
+    "consumerauthorization-state": {
+      "name": "@PROJECT@_consumerauthorization-state"
     },
-    "datamanager-db-state": {
-      "name": "@PROJECT@_datamanager-db-state"
+    "datamanager-state": {
+      "name": "@PROJECT@_datamanager-state"
     },
-    "device-qos-evaluator-db-state": {
-      "name": "@PROJECT@_device-qos-evaluator-db-state"
+    "device-qos-evaluator-state": {
+      "name": "@PROJECT@_device-qos-evaluator-state"
     },
-    "eventhandler-db-state": {
-      "name": "@PROJECT@_eventhandler-db-state"
+    "eventhandler-state": {
+      "name": "@PROJECT@_eventhandler-state"
     },
-    "gatekeeper-db-state": {
-      "name": "@PROJECT@_gatekeeper-db-state"
+    "gatekeeper-state": {
+      "name": "@PROJECT@_gatekeeper-state"
     },
-    "gatetunnel-db-state": {
-      "name": "@PROJECT@_gatetunnel-db-state"
+    "gatetunnel-state": {
+      "name": "@PROJECT@_gatetunnel-state"
     },
-    "graphdbmanager-graphdb-state": {
-      "name": "@PROJECT@_graphdbmanager-graphdb-state"
+    "graphdbmanager-state": {
+      "name": "@PROJECT@_graphdbmanager-state"
     },
     "mqtt-data": {
       "name": "@PROJECT@_mqtt-data"
     },
-    "onboarding-db-state": {
-      "name": "@PROJECT@_onboarding-db-state"
+    "onboarding-state": {
+      "name": "@PROJECT@_onboarding-state"
     },
-    "plantdescriptionengine-db-state": {
-      "name": "@PROJECT@_plantdescriptionengine-db-state"
+    "plantdescriptionengine-state": {
+      "name": "@PROJECT@_plantdescriptionengine-state"
     },
-    "serviceorchestration-dynamic-db": {
-      "name": "@PROJECT@_serviceorchestration-dynamic-db"
+    "serviceorchestration-dynamic-state": {
+      "name": "@PROJECT@_serviceorchestration-dynamic-state"
     },
-    "serviceorchestration-simple-db": {
-      "name": "@PROJECT@_serviceorchestration-simple-db"
+    "serviceorchestration-simple-state": {
+      "name": "@PROJECT@_serviceorchestration-simple-state"
     },
-    "serviceregistry-db": {
-      "name": "@PROJECT@_serviceregistry-db"
+    "serviceregistry-state": {
+      "name": "@PROJECT@_serviceregistry-state"
     },
-    "solocalcloudconfigurator-db-state": {
-      "name": "@PROJECT@_solocalcloudconfigurator-db-state"
+    "sysmonitor-state": {
+      "name": "@PROJECT@_sysmonitor-state"
     },
-    "sysmonitor-db-state": {
-      "name": "@PROJECT@_sysmonitor-db-state"
+    "timemanager-state": {
+      "name": "@PROJECT@_timemanager-state"
     },
-    "timemanager-db-state": {
-      "name": "@PROJECT@_timemanager-db-state"
-    },
-    "translation-manager-db-state": {
-      "name": "@PROJECT@_translation-manager-db-state"
+    "translation-manager-state": {
+      "name": "@PROJECT@_translation-manager-state"
     }
   },
   "secrets": {
@@ -5536,74 +3055,6 @@
     "AH_DB_PW_TRANSLATIONMANAGER": {
       "name": "@PROJECT@_AH_DB_PW_TRANSLATIONMANAGER",
       "file": "@CLOUD_DIR@/secrets/AH_DB_PW_TRANSLATIONMANAGER"
-    },
-    "AH_DB_ROOT_AUTHENTICATION": {
-      "name": "@PROJECT@_AH_DB_ROOT_AUTHENTICATION",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_AUTHENTICATION"
-    },
-    "AH_DB_ROOT_BLACKLIST": {
-      "name": "@PROJECT@_AH_DB_ROOT_BLACKLIST",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_BLACKLIST"
-    },
-    "AH_DB_ROOT_CHOREOGRAPHER": {
-      "name": "@PROJECT@_AH_DB_ROOT_CHOREOGRAPHER",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_CHOREOGRAPHER"
-    },
-    "AH_DB_ROOT_CONFIGURATION": {
-      "name": "@PROJECT@_AH_DB_ROOT_CONFIGURATION",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_CONFIGURATION"
-    },
-    "AH_DB_ROOT_CONSUMERAUTHORIZATION": {
-      "name": "@PROJECT@_AH_DB_ROOT_CONSUMERAUTHORIZATION",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_CONSUMERAUTHORIZATION"
-    },
-    "AH_DB_ROOT_DATAMANAGER": {
-      "name": "@PROJECT@_AH_DB_ROOT_DATAMANAGER",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_DATAMANAGER"
-    },
-    "AH_DB_ROOT_DEVICEQOSEVALUATOR": {
-      "name": "@PROJECT@_AH_DB_ROOT_DEVICEQOSEVALUATOR",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_DEVICEQOSEVALUATOR"
-    },
-    "AH_DB_ROOT_DYNAMICSERVICEORCHESTRATION": {
-      "name": "@PROJECT@_AH_DB_ROOT_DYNAMICSERVICEORCHESTRATION",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_DYNAMICSERVICEORCHESTRATION"
-    },
-    "AH_DB_ROOT_EVENTHANDLER": {
-      "name": "@PROJECT@_AH_DB_ROOT_EVENTHANDLER",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_EVENTHANDLER"
-    },
-    "AH_DB_ROOT_ONBOARDING": {
-      "name": "@PROJECT@_AH_DB_ROOT_ONBOARDING",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_ONBOARDING"
-    },
-    "AH_DB_ROOT_PLANTDESCRIPTIONENGINE": {
-      "name": "@PROJECT@_AH_DB_ROOT_PLANTDESCRIPTIONENGINE",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_PLANTDESCRIPTIONENGINE"
-    },
-    "AH_DB_ROOT_SERVICEREGISTRY": {
-      "name": "@PROJECT@_AH_DB_ROOT_SERVICEREGISTRY",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_SERVICEREGISTRY"
-    },
-    "AH_DB_ROOT_SIMPLESTORESERVICEORCHESTRATION": {
-      "name": "@PROJECT@_AH_DB_ROOT_SIMPLESTORESERVICEORCHESTRATION",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_SIMPLESTORESERVICEORCHESTRATION"
-    },
-    "AH_DB_ROOT_TIMEMANAGER": {
-      "name": "@PROJECT@_AH_DB_ROOT_TIMEMANAGER",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_TIMEMANAGER"
-    },
-    "AH_DB_ROOT_TRANSLATIONMANAGER": {
-      "name": "@PROJECT@_AH_DB_ROOT_TRANSLATIONMANAGER",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_TRANSLATIONMANAGER"
-    },
-    "AH_GRAPHDB_ADMIN_GRAPHDBMANAGER": {
-      "name": "@PROJECT@_AH_GRAPHDB_ADMIN_GRAPHDBMANAGER",
-      "file": "@CLOUD_DIR@/secrets/AH_GRAPHDB_ADMIN_GRAPHDBMANAGER"
-    },
-    "AH_GRAPHDB_PW_GRAPHDBMANAGER": {
-      "name": "@PROJECT@_AH_GRAPHDB_PW_GRAPHDBMANAGER",
-      "file": "@CLOUD_DIR@/secrets/AH_GRAPHDB_PW_GRAPHDBMANAGER"
     },
     "AH_PW_AIG": {
       "name": "@PROJECT@_AH_PW_AIG",
@@ -5773,10 +3224,6 @@
       "name": "@PROJECT@_AH_DB_PW_CERTIFICATEAUTHORITY",
       "file": "@CLOUD_DIR@/secrets/AH_DB_PW_CERTIFICATEAUTHORITY"
     },
-    "AH_DB_ROOT_CERTIFICATEAUTHORITY": {
-      "name": "@PROJECT@_AH_DB_ROOT_CERTIFICATEAUTHORITY",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_CERTIFICATEAUTHORITY"
-    },
     "AH_STORE_PW_GT": {
       "name": "@PROJECT@_AH_STORE_PW_GT",
       "file": "@CLOUD_DIR@/secrets/AH_STORE_PW_GT"
@@ -5784,10 +3231,6 @@
     "AH_DB_PW_GATETUNNEL": {
       "name": "@PROJECT@_AH_DB_PW_GATETUNNEL",
       "file": "@CLOUD_DIR@/secrets/AH_DB_PW_GATETUNNEL"
-    },
-    "AH_DB_ROOT_GATETUNNEL": {
-      "name": "@PROJECT@_AH_DB_ROOT_GATETUNNEL",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_GATETUNNEL"
     },
     "AH_STORE_PW_GK": {
       "name": "@PROJECT@_AH_STORE_PW_GK",
@@ -5797,29 +3240,9 @@
       "name": "@PROJECT@_AH_DB_PW_GATEKEEPER",
       "file": "@CLOUD_DIR@/secrets/AH_DB_PW_GATEKEEPER"
     },
-    "AH_DB_ROOT_GATEKEEPER": {
-      "name": "@PROJECT@_AH_DB_ROOT_GATEKEEPER",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_GATEKEEPER"
-    },
     "AH_STORE_PW_LCM": {
       "name": "@PROJECT@_AH_STORE_PW_LCM",
       "file": "@CLOUD_DIR@/secrets/AH_STORE_PW_LCM"
-    },
-    "AH_STORE_PW_SOLC": {
-      "name": "@PROJECT@_AH_STORE_PW_SOLC",
-      "file": "@CLOUD_DIR@/secrets/AH_STORE_PW_SOLC"
-    },
-    "AH_PW_SOLC": {
-      "name": "@PROJECT@_AH_PW_SOLC",
-      "file": "@CLOUD_DIR@/secrets/AH_PW_SOLC"
-    },
-    "AH_DB_PW_SOLOCALCLOUDCONFIGURATOR": {
-      "name": "@PROJECT@_AH_DB_PW_SOLOCALCLOUDCONFIGURATOR",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_PW_SOLOCALCLOUDCONFIGURATOR"
-    },
-    "AH_DB_ROOT_SOLOCALCLOUDCONFIGURATOR": {
-      "name": "@PROJECT@_AH_DB_ROOT_SOLOCALCLOUDCONFIGURATOR",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_SOLOCALCLOUDCONFIGURATOR"
     },
     "AH_STORE_PW_SM": {
       "name": "@PROJECT@_AH_STORE_PW_SM",
@@ -5828,10 +3251,6 @@
     "AH_DB_PW_SYSMONITOR": {
       "name": "@PROJECT@_AH_DB_PW_SYSMONITOR",
       "file": "@CLOUD_DIR@/secrets/AH_DB_PW_SYSMONITOR"
-    },
-    "AH_DB_ROOT_SYSMONITOR": {
-      "name": "@PROJECT@_AH_DB_ROOT_SYSMONITOR",
-      "file": "@CLOUD_DIR@/secrets/AH_DB_ROOT_SYSMONITOR"
     }
   }
 }

@@ -5,7 +5,7 @@ LocalCloudConfigurator is an Arrowhead Java-Spring support system (Blacklist lay
 | Part | Where | Port | Security |
 |---|---|---|---|
 | `localCloudConfiguration`, generalManagement, sysMonitor | container `localcloudconfigurator` | 8492 | mutual TLS (`client-auth=need`), outsourced authentication, CERT_AUTH, ConsumerAuthorization, secure profile |
-| Private database `ah_localcloudconfigurator` | container `localcloudconfigurator-db` (MySQL 8.4.11) | none published | TLS (`verify-full`), DML-only account (`least-privilege.sh`), internal network |
+| Embedded database `ah_localcloudconfigurator` | inside the API container (volume `/data`) | none | password from a secret file; mode 700, UID 10001 |
 | Host worker | per-user launchd service on the host | 127.0.0.1:8493 | mutual TLS, loopback only, does not register |
 
 The ports moved from 8097/8098 (inside the GateTunnel control pool) to the operator-tools range 8492/8493.
@@ -56,3 +56,7 @@ The worker keeps its file state under `~/.local/share/JavaLocalCloudConfigurator
 `make deploy` (`scripts/deploy.sh`) builds and tests, puts both services of `compose.yaml` into the cloud's Compose file (`scripts/configure-direct-cloud.py --env-file <cloud env>`, 0600 backup), installs the host worker and recreates only the configurator and its database. It changes a deployed cloud: run it only when an operator decides so. It was not run as part of the Spring conversion.
 
 Interruption is not transactional rollback: completed actions remain applied. Inspect the real state and review a new plan. Legacy ColonyOS files and commands (`keygen`, `register`, `executor`, `lcc.backend=colony`) remain available for explicit historical compatibility.
+
+## Data
+
+The system keeps its data in its own embedded database (H2 in `/data`, the project-owned volume `state`). No database container, network or port exists, and no other container may mount that volume: the data is reachable only through the system's services. `DB_PASSWORD_FILE` opens the database file; do not change it after the first start. The schema (`src/main/resources/database/schema.sql`) is applied by the system itself. Back up the volume while the system is stopped.

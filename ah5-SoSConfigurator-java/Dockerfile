@@ -15,7 +15,7 @@ WORKDIR /app
 COPY --from=build /source/target/sosconfigurator.jar /app/sosconfigurator.jar
 COPY config /app/config
 COPY catalogs /app/catalogs
-RUN mkdir -p /app/logs && chown -R 10001:10001 /app
+RUN mkdir -p /app/logs /data && chown -R 10001:10001 /app /data && chmod 700 /data
 USER 10001:10001
 # 8494: sosConfiguration over mutual TLS; 8495: operator console (publish on the host's loopback interface only)
 EXPOSE 8494 8495

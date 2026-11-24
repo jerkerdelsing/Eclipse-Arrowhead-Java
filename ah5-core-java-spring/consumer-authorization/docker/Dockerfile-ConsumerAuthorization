@@ -34,7 +34,9 @@ COPY --from=build /app/consumer-authorization/docker/entrypoint.sh entrypoint.sh
 # Release 5.3.0: run as an unprivileged user (UID/GID 10001, as the support images). The entrypoint moves the default
 # configuration from config_temp to /app/config and the logs are written to /app, so /app belongs to that user; a
 # volume or bind mount at /app/config must be writable by UID 10001.
-RUN chmod +x entrypoint.sh && mkdir -p /app/config && chown -R 10001:10001 /app
+RUN chmod +x entrypoint.sh && mkdir -p /app/config /data && chown -R 10001:10001 /app /data && chmod 700 /data
+# the system's own embedded database; mount a private volume here
+ENV DATABASE_DIRECTORY=/data
 USER 10001:10001
 
 ENTRYPOINT ["/app/entrypoint.sh"]

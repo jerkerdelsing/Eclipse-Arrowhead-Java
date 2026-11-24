@@ -57,7 +57,7 @@ The tests cover signing rules, revocation, the CRL, validation, the caller profi
 
 ## Moving from the native SQLite store
 
-`scripts/migrate-sqlite-to-mysql.py` converts the native `/data/certificate-authority.db` into SQL for the new schema. Issued certificates, revocations and trusted keys keep their ids. Run it once, as the database root user, before the new CA starts; it refuses a schema that already holds data. See the script header.
+(Former MySQL database only; not converted to the embedded database.) `scripts/migrate-sqlite-to-mysql.py` converts the native `/data/certificate-authority.db` into SQL for the new schema. Issued certificates, revocations and trusted keys keep their ids. Run it once, as the database root user, before the new CA starts; it refuses a schema that already holds data. See the script header.
 
 ## Documentation
 

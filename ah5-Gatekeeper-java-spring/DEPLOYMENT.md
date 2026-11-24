@@ -7,7 +7,6 @@ This folder owns the complete source, build, executable JAR, application image, 
 With Java 21 and Maven 3.9, run `mvn -B clean verify` here. `scripts/verify.sh` also checks the artifact contents. The first build needs Maven Central; `-o` works with a populated cache. The output is `target/arrowhead-gatekeeper-5.3.0.jar`. `docker compose build` builds both images from this folder and runs the tests:
 
 - `arrowhead-gatekeeper-standalone:5.3.0`
-- `arrowhead-gatekeeper-standalone-db:5.3.0`
 
 ## Provision and select this system
 
@@ -34,7 +33,7 @@ With Java 21 and Maven 3.9, run `mvn -B clean verify` here. `scripts/verify.sh` 
 4. Run `docker compose config --quiet`, then `docker compose up -d --build`.
 
 What Compose starts:
-- `gatekeeper-db`: MySQL 8.4.11, secure transport required, on the internal `database` network only. Its first start creates the `ah_gatekeeper` schema (`deployment/database/init.sql`). `least-privilege.sh` then restricts the `gatekeeper` account to `SELECT, INSERT, UPDATE, DELETE`.
+- The schema `src/main/resources/database/schema.sql` is applied by the system itself at start to its own embedded database (volume `/data`); Hibernate then validates it.
 - `gatekeeper`: starts with `ddl-auto=validate` once the database is healthy.
 
 The container runs unprivileged (UID 10001), with a read-only root, no capabilities, and tmpfs `/tmp` and `/app/logs`.
@@ -96,3 +95,7 @@ this cloud's consumers may use, as `Cloud|Organisation`, comma-separated; each m
 the own organisation, also when a caller names `targetClouds` (refused ones are returned in `refusedClouds`), and
 `init_icn` refuses another organisation's cloud with 403. Requests from other clouds (the provider side) are not
 affected.
+
+## Data
+
+The system keeps its data in its own embedded database (H2 in `/data`, the project-owned volume `state`). No database container, network or port exists, and no other container may mount that volume: the data is reachable only through the system's services. `DB_PASSWORD_FILE` opens the database file; do not change it after the first start. The schema (`src/main/resources/database/schema.sql`) is applied by the system itself. Back up the volume while the system is stopped.

@@ -52,20 +52,20 @@ Independence concerns source, packaging and state ownership. It does not remove 
 
 A Spring system stops at startup when its effective configuration disables TLS, uses `authentication.policy=declared` or disables authorization enforcement. The `config/application.properties` of each folder meets the profile. Do not set `arrowhead.security.profile=development` in a deployment; see [SECURITY-PROFILE.md](SECURITY-PROFILE.md).
 
-## Database account privileges
+## Data ownership
 
-At run time a system only reads and changes rows: JPA uses `ddl-auto=validate`, no system migrates its schema, Quartz keeps jobs in memory and Log4j2 only inserts into `logs`. The application database account therefore holds only `SELECT, INSERT, UPDATE, DELETE` on its own schema. Tables are created and changed by root through the initialisation scripts.
+Every system is responsible for its own data. A system with state runs its database inside its own process (H2, MySQL
+compatibility mode; GraphDBManager an embedded RDF store) and stores it in one private volume mounted at `/data` by that
+container only. There are no database containers, database networks or database ports. Other systems reach the data only
+through the services the system provides.
 
-- The `grant_privileges.sql` source scripts of the Core and support systems grant exactly these four privileges.
-- The MySQL-backed Compose deployments add `deployment/database/least-privilege.sh` after the schema script. It revokes the `ALL` grant that the MySQL image gives the `MYSQL_USER` account and grants the four privileges instead.
-- Init scripts run only on an empty volume. For a database initialised earlier, run as root (schema and user from the folder's `compose.yaml`; the underscores are escaped as in the image's own grant):
-
-```sql
-REVOKE ALL ON `ah\_eventhandler`.* FROM 'eventhandler'@'%';
-GRANT SELECT, INSERT, UPDATE, DELETE ON `ah\_eventhandler`.* TO 'eventhandler'@'%';
-```
-
-This applies to every system with a database, including CertificateAuthority, Gatekeeper, GateTunnel, SysMonitor, LocalCloudConfigurator and SoSConfigurator, which moved from SQLite or files to MySQL on 8 November 2026.
+- The schema, `src/main/resources/database/schema.sql`, is applied by the system at start and is idempotent; JPA then validates it.
+- Default rows (Authentication, ServiceRegistry) are inserted once per database; rows deleted later do not come back.
+- The system owns its schema, so the earlier restriction of the account to data manipulation no longer applies. The boundary is
+  the container: UID 10001, read-only root filesystem, no capabilities, `/data` mode 700.
+- A text value may hold at most 1,048,576 characters (`mediumtext` columns).
+- The database password opens the database file; `rotate-secrets.sh` therefore keeps it.
+- Existing MySQL data: `tools/embedded-database-migration/Migrate.java` copies a schema and compares row counts and digests.
 
 ## Fresh test-cloud release scope
 

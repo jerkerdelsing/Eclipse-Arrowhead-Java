@@ -29,20 +29,6 @@ echo "host ok: $host_arch, Docker $(docker version --format '{{.Server.Version}}
 
 say "2/6 configuration ($WORK)"
 python3 "$KIT/bin/configure.py" "$PKG" "$CLOUD_JSON" "$WORK"
-# Each MySQL with native AIO takes about 4096 of the Docker host kernel's AIO contexts (fs.aio-max-nr, often 65536); a
-# database that gets none does not start ("io_setup() failed with EAGAIN"). Without the headroom the databases of this
-# cloud use MySQL's own I/O threads; raise fs.aio-max-nr on a Linux server instead (docs/TROUBLESHOOTING.md).
-dbs=$(python3 -c 'import json,sys; print(sum(1 for n in json.load(open(sys.argv[1]))["services"] if n.endswith("-db")))' "$WORK/compose.yaml")
-probe=$(python3 -c 'import json,sys; print(next(s["image"] for n,s in json.load(open(sys.argv[1]))["services"].items() if n.endswith("-db")))' "$WORK/compose.yaml")
-if [ -z "${SOLC_DB_NATIVE_AIO:-}" ] && [ ! -f "$WORK/host-settings.json" ] && aio=$(docker run --rm --network none --entrypoint sh "$probe" -c 'echo $(cat /proc/sys/fs/aio-nr) $(cat /proc/sys/fs/aio-max-nr)' 2>/dev/null); then
-  set -- $aio
-  if [ $(( $2 - $1 )) -lt $(( dbs * 4096 )) ]; then
-    echo "warning: the Docker host has $(( $2 - $1 )) of $2 AIO contexts left (fs.aio-max-nr) for $dbs databases; they run without native AIO"
-    echo "         (on a Linux server: sudo sysctl -w fs.aio-max-nr=1048576, persist in /etc/sysctl.d/, then re-run install.sh)"
-    export SOLC_DB_NATIVE_AIO=off
-    python3 "$KIT/bin/configure.py" "$PKG" "$CLOUD_JSON" "$WORK" >/dev/null
-  fi
-fi
 
 if [ "$SKIP_IMAGES" != --skip-images ]; then
   say "3/6 images"

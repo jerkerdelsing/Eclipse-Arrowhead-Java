@@ -131,13 +131,6 @@ def compose(kit: pathlib.Path, pkg: pathlib.Path, work: pathlib.Path, cloud: dic
     keep = closure(t["services"], wanted)
     services = {k: v for k, v in t["services"].items() if k in keep}
     offset = cloud["portOffset"]
-    # host settings decided by install-cloud.sh (work/host-settings.json), so that every later configure.py keeps them
-    settings_file = work / "host-settings.json"
-    settings = json.loads(settings_file.read_text()) if settings_file.exists() else {}
-    if os.environ.get("SOLC_DB_NATIVE_AIO") in ("on", "off"):
-        settings["dbNativeAio"] = os.environ["SOLC_DB_NATIVE_AIO"] == "on"
-        settings_file.write_text(json.dumps(settings, indent=2) + "\n")
-    native_aio = settings.get("dbNativeAio", True)
     federated = (work / "federation/imported").exists()
     peers = cloud.get("peers", []) if federated else []
     relay = cloud.get("relay") or {}
@@ -148,9 +141,6 @@ def compose(kit: pathlib.Path, pkg: pathlib.Path, work: pathlib.Path, cloud: dic
             p["published"] = str(int(p["published"]) + offset)
         if "depends_on" in s:
             s["depends_on"] = {d: c for d, c in s["depends_on"].items() if d in services}
-        if name.endswith("-db") and not native_aio and isinstance(s.get("command"), list) and s["command"][:1] == ["mysqld"]:
-            # too few Linux AIO contexts left on this Docker host (fs.aio-max-nr): MySQL then uses its own I/O threads
-            s["command"] = [c for c in s["command"] if not c.startswith("--innodb-use-native-aio")] + ["--innodb-use-native-aio=OFF"]
         env = s.get("environment")
         if not isinstance(env, dict):
             continue

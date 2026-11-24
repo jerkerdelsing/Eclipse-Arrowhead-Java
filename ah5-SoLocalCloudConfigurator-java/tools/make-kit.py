@@ -5,7 +5,7 @@
   tools/make-kit.py <reference-cloud-dir>
 
 The reference is the v5.3.0 Java test cloud (Arrowhead-test-clouds/Arrowhead-test-cloud-java), whose deployment is tested
-(smoke-test.sh, smoke-security.sh). Copied: its policy, provisioning, credential and smoke scripts, broker and database
+(smoke-test.sh, smoke-security.sh). Copied: its policy, provisioning, credential and smoke scripts, broker 
 configuration, certificate extension files, core image adapters, the RandomDataProducer source, and its rendered Compose
 definition as kit/cloud/templates/compose-template.json with every host path, project, registry and tag replaced by a
 placeholder (@CLOUD_DIR@, @PROJECT@, @REGISTRY@, @TAG@). Never copied: keys, certificates, stores, secrets, .env,
@@ -24,16 +24,17 @@ SCRIPT_EXCLUDE = re.compile(r"(\.before-|^build-|^remove-legacy-|\.pyc$)")
 COPY = {
     "amqp": ["acl", "advanced.config", "enabled_plugins", "entrypoint.sh", "rabbitmq.conf"],
     "mqtt": ["acl", "crl-watch.sh", "mosquitto.conf"],
-    "db": ["mysql-entrypoint.sh", "zy-dso-plant-rules.sql", "zy-serviceregistry-amqp-templates.sql", "zz-arrowhead-system-user-password.sh"],
 }
 # services of the reference cloud that a member cloud of a SoLC does not run: LocalCloudConfigurator manages a cloud
 # from inside, a SoLC member is installed from its package
-DROP = {"localcloudconfigurator", "localcloudconfigurator-db"}
+DROP = {"localcloudconfigurator", "solocalcloudconfigurator"}
 SECRET_MARKERS = ("PRIVATE KEY", "BEGIN CERTIFICATE")
 # Changes of the reference scripts for hosts other than the reference Mac, applied while copying (each must match once):
 # without a keychain (Linux) the console password goes to operator/console-password (0600 in a 0700 folder) instead of
 # being printed once, and lib-secrets.sh reads it from there.
 PATCHES = {
+    # the reference cloud's example file keeps its first version number
+    ".env.example": [("AH_VERSION=5.2.2", "AH_VERSION=5.4.0")],
     # the kit writes compose.yaml as JSON, which the YAML pattern of write_files does not read: the Compose secret files are
     # written by kit/bin/prepare.py, which also generates the values; an empty secrets/ must not stop init.sh
     "scripts/rotate-secrets.sh": [
@@ -81,6 +82,7 @@ def template(ref: pathlib.Path) -> dict:
     for name in DROP:
         compose["services"].pop(name, None)
     for s in compose["services"].values():
+        s.get("depends_on", {}).pop("solocalcloudconfigurator", None) if isinstance(s.get("depends_on"), dict) else None
         s.get("labels", {}).pop("eu.arrowhead.primary-source", None)
         if not s.get("labels"):
             s.pop("labels", None)
@@ -123,7 +125,6 @@ def main() -> None:
             copy(ref / f, KIT / f)
     copy(ref / ".env.example", KIT / ".env.example")
     copy(ref / "generator/core-adapter/Dockerfile", KIT / "images/core-adapter/Dockerfile")
-    copy(ref / "generator/core-db/Dockerfile", KIT / "images/core-db/Dockerfile")
     copy(ref / "generator/provision-extra-identities.sh", KIT / "scripts/provision-extra-identities.sh")
     rdp = ref / "random-data-producer"
     for f in sorted(rdp.rglob("*")):

@@ -11,7 +11,7 @@
 #   J14 no Spring Security generated password in any container log
 #   J9  ServiceRegistry refuses core/support service definitions from other systems
 #   J10 the AMQP broker's epmd and Erlang distribution ports are not reachable from other containers
-#   J1  per-database root and system users, no shared ah-operator, databases unreachable from other systems
+#   J1  every system owns its data: embedded database, no database services, networks, ports or shared volumes
 #   J2  no copy of the cloud CA private key anywhere else in the workspace
 #   J15 no container mounts security/x509, security/ca or another system's credentials; CA signing keys only in
 #       security/ca and, for the cloud CA, the CertificateAuthority's bundle
@@ -21,6 +21,7 @@
 #   J23 Sysop is the only sysop identity; LocalCloudManager relies on explicit grants
 #   LC  localCloudConfiguration is granted to LocalCloudManager only; LocalCloudConfigurator may verify its consumers
 #   SoLC soLocalCloudConfiguration is granted to LocalCloudManager only; SoLocalCloudConfigurator only reads designs
+#   QE  qualityEvaluation is granted to DynamicServiceOrchestration only and enforced by DeviceQoSEvaluator
 #   J3  every container non-root (the Docker proxy too since SOS-8, 2026-11-10), read-only root filesystem, no capabilities, memory and
 #       PID limits; writable host mounts only the CA's /crl and the proxy's Docker socket
 #   J7  secrets only as files: none in a container's configuration or in its PID 1 environment, owner-only secret
@@ -124,20 +125,26 @@ probe_from() {  # probe_from <service> <host> <port> -> reachable/unreachable
   id=$(docker compose ps -q "$1"); probe="(exec 3<>/dev/tcp/$2/$3) 2>/dev/null && echo reachable || echo unreachable"
   if has_bash "$id"; then docker exec "$id" bash -c "$probe"; else in_namespace "$id" network "$probe"; fi
 }
-for db in $(docker compose config --services | grep -- '-db$'); do
-  # the root password's key, from the service's db-root-password secret (J7)
-  root_key=$(docker compose config --format json | jq -r --arg db "$db" '.services[$db].secrets[]? | select(.target | test("db-root-password$")) | .source' | head -1)
-  operators=$(docker compose exec -T -e MYSQL_PWD="$(secret "$root_key")" "$db" mysql -uroot -N \
-    -e "SELECT COUNT(*) FROM mysql.user WHERE user='ah-operator'" 2>/dev/null || echo error)
-  check "$db: no shared ah-operator user" 0 "$operators"
-  prober=sysmonitor; [ "$db" = sysmonitor-db ] && prober=timemanager
-  check "$db: unreachable from $prober" unreachable "$(probe_from "$prober" "$db" 3306)"
+# Every system keeps its data in its own embedded database (2026-11-24): no database service, no database network, each
+# /data volume mounted by one service only, and no database port inside any system's container.
+check "no database services" 0 "$(docker compose config --services | grep -cE -- '-(db|graphdb)$' || true)"
+check "no database networks" 0 "$(docker compose config --format json | jq '[.networks | keys[] | select(startswith("db-"))] | length')"
+check "each data volume is mounted by one service" 0 "$(docker compose config --format json | jq '[.services[].volumes[]? | select(.type == "volume") | .source] | group_by(.) | map(select(length > 1)) | length')"
+data_services=$(docker compose config --format json | jq -r '.services | to_entries[] | select(any(.value.volumes[]?; .type == "volume" and .target == "/data")) | .key')
+# positive control: the core systems at least have one (a lean cloud has fewer systems than the reference cloud)
+check "ServiceRegistry has an embedded database" serviceregistry "$(echo "$data_services" | grep -x serviceregistry)"
+for s in $data_services; do
+  id=$(docker compose ps -q "$s")
+  check "$s: data folder is its own (mode 700, uid 10001)" "700 10001" "$(docker exec "$id" stat -c '%a %u' /data 2>/dev/null)"
+  check "$s: no database port" closed "$(docker exec "$id" bash -c 'for p in 3306 7200 8082 9092 5435; do (exec 3<>/dev/tcp/127.0.0.1/$p) 2>/dev/null && echo "open $p"; done; true' | head -1 | grep . || echo closed)"
 done
-roots=$(grep -E '^AH_DB_ROOT_[A-Z]+=' .env | cut -d= -f2- | sort -u | wc -l | tr -d ' ')
-check "every database has its own root password" "$(grep -cE '^AH_DB_ROOT_[A-Z]+=' .env)" "$roots"
-# positive control of the probe: DataManager (Java in every deployment of this cloud) reaches its own database. The native
-# core systems of the interchangeability overlays keep file state and are on no database network.
-check "positive control: DataManager reaches its database" reachable "$(probe_from datamanager datamanager-db 3306)"
+# no other container of this Docker host mounts one of these volumes
+project=$(docker compose config --format json | jq -r .name)
+foreign=""
+for v in $(docker compose config --format json | jq -r '.volumes[].name' | grep -- '-state$'); do
+  [ "$(docker ps -aq --filter "volume=$v" | wc -l | tr -d ' ')" -le 1 ] || foreign="$foreign $v"
+done
+check "no second container mounts a data volume of $project" "" "$foreign"
 
 echo "== J2 custody of the cloud CA key"
 ca_pub=$(openssl pkey -in security/bundles/certificate-authority/ca.key -pubout 2>/dev/null | shasum -a 256 | cut -c1-16)
@@ -249,12 +256,6 @@ check "no .env.previous kept after a verified rotation" absent "$([ -e .env.prev
 
 echo "== J8 supported component versions"
 at_least() { [ -n "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n 1)" = "$1" ] && echo "$2" || echo "older than $1: ${2:-unknown}"; }
-old_dbs=""
-for db in $(docker compose config --services | grep -- '-db$'); do
-  version=$(docker compose exec -T "$db" mysqld --version 2>/dev/null | sed -n 's/.*Ver \([0-9.]*\).*/\1/p')
-  case "$version" in 8.4.*) ;; *) old_dbs="$old_dbs $db:${version:-?}" ;; esac
-done
-check "every database runs MySQL 8.4 LTS" "" "$old_dbs"
 # LocalCloudManager console and Docker proxy are Spring/Java 21 since 2026-11-09 (formerly Node.js)
 java_version() { docker compose exec -T "$1" java -version 2>&1 | sed -n 's/.*version "\([0-9.]*\)".*/\1/p' | head -1 || true; }
 java_api=$(java_version cloud-monitor-api)
@@ -389,6 +390,28 @@ for target in $FILTERED; do check "blacklisted SmokeClient refused at port ${tar
 check "remove SmokeClient from the blacklist" 200 "$(blacklist_call -X DELETE "$BLACKLIST_URL/remove?names=SmokeClient")"
 for target in $FILTERED; do check "SmokeClient served again at port ${target%%/*}" served "$(served "$(smoke_echo "$target")")"; done
 trap - EXIT
+
+echo "== QE qualityEvaluation is decided by ConsumerAuthorization"
+# since release 5.3.0 DeviceQoSEvaluator asks ConsumerAuthorization for every qualityEvaluation call; only the dynamic
+# orchestrator (QoS requirements) is granted it (configure-deviceqosevaluator-policy.sh)
+check "DynamicServiceOrchestration granted qualityEvaluation filter and sort" 2 \
+  "$(grant_check DeviceQoSEvaluator DynamicServiceOrchestration qualityEvaluation filter sort)"
+check "another system (SmokeClient) granted no qualityEvaluation operation" 0 "$(grant_check DeviceQoSEvaluator SmokeClient qualityEvaluation filter sort)"
+check "DeviceQoSEvaluator may verify its consumers" 1 "$(grant_check ConsumerAuthorization DeviceQoSEvaluator authorization verify)"
+qe_call() {  # qe_call <operation> -> HTTP status of an authenticated SmokeClient call
+  code --cacert "$CERT_DIR/ca.crt" --cert "$CERT_DIR/smoke-client.crt" --key "$CERT_DIR/smoke-client.key" \
+    -H "Authorization: Bearer IDENTITY-TOKEN//$smoke_echo_token" -H 'Content-Type: application/json' \
+    --data '{"providers":["SmokeClient"],"configuration":{}}' \
+    "https://127.0.0.1:$(env_value DEVICE_QOS_EVALUATOR_PORT 8472)/deviceqosevaluator/qualityevaluation/$1"
+}
+past_filter() { case "$1" in 401|403|000) echo "$1" ;; *) echo passed ;; esac; }
+check "SmokeClient without a grant refused at qualityEvaluation filter" 403 "$(qe_call filter)"
+# a temporary grant lets SmokeClient through (sort only: the refusal of filter above is cached for 30 s)
+DEVICEQOSEVALUATOR_QUALITY_EVALUATION_CONSUMERS='["DynamicServiceOrchestration","SmokeClient"]' \
+  ./scripts/configure-deviceqosevaluator-policy.sh >/dev/null
+check "SmokeClient with a grant passes the authorization filter at sort" passed "$(past_filter "$(qe_call sort)")"
+./scripts/configure-deviceqosevaluator-policy.sh >/dev/null
+check "SmokeClient's temporary grant removed again" 0 "$(grant_check DeviceQoSEvaluator SmokeClient qualityEvaluation filter sort)"
 
 echo "== J9 reserved service definitions"
 smoke_token=$(curl -fsS --max-time 15 --cacert "$CERT_DIR/ca.crt" --cert "$CERT_DIR/smoke-client.crt" --key "$CERT_DIR/smoke-client.key" \

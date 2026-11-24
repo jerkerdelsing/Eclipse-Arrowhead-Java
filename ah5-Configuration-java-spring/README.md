@@ -45,7 +45,7 @@ When TLS requires client certificates (`server.ssl.client-auth=need`), the HTTP 
 
 ## Database
 
-Configuration owns the `ah_configuration` schema (`configuration_data` with one row per system, and `logs`). Create it with `src/main/resources/database/create_empty_db.sql` and `grant_privileges.sql`; Hibernate validates the schema at start-up.
+Configuration owns the `ah_configuration` schema (`configuration_data` with one row per system, and `logs`). The schema `src/main/resources/database/schema.sql` is applied by the system itself at start to its own embedded database (volume `/data`); Hibernate then validates it.
 
 ## Build
 

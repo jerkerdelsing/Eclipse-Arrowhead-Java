@@ -129,7 +129,7 @@ public final class SosCli {
 			values.put("sos_executor_" + roleKey(role) + "_prvkey", ColonyCrypto.generatePrivateKey());
 		}
 
-		for (final String key : new String[] { "colonies_db_password", "sos_db_password", "sos_db_root_password" }) {
+		for (final String key : new String[] { "colonies_db_password", "sos_db_password" }) {
 			values.put(key, hex(random, 24));
 		}
 

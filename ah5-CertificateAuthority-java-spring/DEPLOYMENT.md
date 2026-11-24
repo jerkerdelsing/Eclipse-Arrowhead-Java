@@ -4,7 +4,7 @@ This folder owns the complete source, build, JAR, image, configuration and Compo
 
 ## Build
 
-Run `mvn -B clean verify` here with Java 21 and Maven 3.9. The output is `target/arrowhead-certificate-authority-5.3.0.jar`. `docker compose build` builds the application image `arrowhead-certificate-authority-standalone:5.3.0` and the database image `arrowhead-certificate-authority-standalone-db:5.3.0` from this folder.
+Run `mvn -B clean verify` here with Java 21 and Maven 3.9. The output is `target/arrowhead-certificate-authority-5.3.0.jar`. `docker compose build` builds the application image `arrowhead-certificate-authority-standalone:5.3.0` from this folder.
 
 ## Provision and start
 
@@ -19,7 +19,7 @@ Run `mvn -B clean verify` here with Java 21 and Maven 3.9. The output is `target
    Files must be readable by UID 10001; the CRL directory must be writable by it.
 3. Run `docker compose config --quiet`, then `docker compose up -d --build`.
 
-The database container initialises only its own schema on an empty volume. Its init script then restricts the application account to `SELECT, INSERT, UPDATE, DELETE` (`deployment/database/least-privilege.sh`); schema changes are made as root. The database has no host port and is reachable only on the project's internal network, with TLS required.
+The schema `src/main/resources/database/schema.sql` is applied by the system itself at start to its own embedded database (volume `/data`); Hibernate then validates it. There is no database container, network or port.
 
 The application starts only with the secure profile: TLS with client certificates, outsourced authentication and a CRL. See `SECURITY-PROFILE.md` in the distribution root.
 
@@ -28,8 +28,8 @@ The application starts only with the secure profile: TLS with client certificate
 The native 5.2.2 CertificateAuthority kept its state in a SQLite file on the `state` volume. To keep issued certificates, revocations and trusted keys:
 
 1. Stop the native CA and copy `/data/certificate-authority.db` out of its volume.
-2. Start only the new database: `docker compose up -d certificate-authority-db`.
-3. Convert and import as root, as described in `scripts/migrate-sqlite-to-mysql.py`.
+2. Note: `scripts/migrate-sqlite-to-mysql.py` targets the former MySQL database and has not been converted to the embedded database.
+3. Import a native database with a release before the embedded database, then copy it with `tools/embedded-database-migration`.
 4. Start the CA: `docker compose up -d --build`.
 
 The native health port (8483) and PEM system identity are no longer used; provision the PKCS#12 keystore instead.
@@ -41,3 +41,7 @@ The HTTPS API uses port 8448. ServiceRegistry and Authentication are required fo
 `docker compose down` stops only this project and keeps its database volume. Back up the database before upgrades. `down -v` erases this project's state and must not be used for ordinary stops.
 
 The SysDD is in `documentation/v5.2.2`. The [distribution deployment guide](../DEPLOYMENT-GUIDE.md) covers selecting several systems.
+
+## Data
+
+The system keeps its data in its own embedded database (H2 in `/data`, the project-owned volume `state`). No database container, network or port exists, and no other container may mount that volume: the data is reachable only through the system's services. `DB_PASSWORD_FILE` opens the database file; do not change it after the first start. The schema (`src/main/resources/database/schema.sql`) is applied by the system itself. Back up the volume while the system is stopped.

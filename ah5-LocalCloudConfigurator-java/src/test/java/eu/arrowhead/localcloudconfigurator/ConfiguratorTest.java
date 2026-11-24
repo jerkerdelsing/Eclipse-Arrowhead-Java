@@ -23,7 +23,6 @@ class ConfiguratorTest{
     assertEquals(5,p.systems().size());
     assertTrue(p.systems().contains("amqp-broker"));
     assertFalse(p.systems().contains("serviceregistry-db"));
-    assertTrue(p.steps().indexOf(new Planner.Step("up","serviceregistry-db","serviceregistry"))<p.steps().indexOf(new Planner.Step("up","serviceregistry","serviceregistry")));
   }
   @Test void runningComponentsAreNotRecreatedAndVerificationIsNonMutating()throws Exception{
     var c=catalog();
@@ -100,16 +99,14 @@ class ConfiguratorTest{
     assertEquals(409,assertThrows(Refused.class,()->restarted.apply(new ApplyRequest(List.of(),List.of(),false,true,"stale"))).status());
     assertEquals(404,assertThrows(Refused.class,()->restarted.deployment("foreign")).status());
   }
-  @Test void databasesAreOwnedAssetsWithOrderedLifecycle()throws Exception{
-    var c=catalog();int count=0;
-    for(var host:c.systems())for(String db:host.internalAssets()){
-      count++;assertEquals(host.id(),c.hostId(db));assertThrows(IllegalArgumentException.class,()->c.entry(db));assertTrue(host.services().indexOf(db)<host.services().indexOf(host.id()));
-      assertThrows(IllegalArgumentException.class,()->Planner.build(c,new Planner.Request(List.of(),List.of(db),false,false),all(c)));
-      assertFalse(c.closure(List.of(host.id())).contains(db));
+  // every system keeps its data in its own embedded database: the catalog names no database service
+  @Test void noDatabaseIsAServiceOfItsOwn()throws Exception{
+    var c=catalog();
+    for(var host:c.systems()){
+      assertEquals(List.of(),host.internalAssets());
+      assertTrue(host.services().stream().noneMatch(s->s.endsWith("-db")||s.endsWith("-graphdb")),host.id());
     }
-    assertEquals(16,count);
-    var plan=Planner.build(c,new Planner.Request(List.of(),List.of("timemanager"),false,false),List.of("timemanager","timemanager-db"));
-    assertEquals(List.of(new Planner.Step("stop","timemanager","timemanager"),new Planner.Step("stop","timemanager-db","timemanager")),plan.steps().stream().filter(s->s.kind().equals("stop")).toList());
-    assertTrue(Planner.build(c,new Planner.Request(List.of("timemanager-db"),List.of(),false,false),List.of()).systems().contains("timemanager"));
+    var plan=Planner.build(c,new Planner.Request(List.of(),List.of("timemanager"),false,false),List.of("timemanager"));
+    assertEquals(List.of(new Planner.Step("stop","timemanager","timemanager")),plan.steps().stream().filter(s->s.kind().equals("stop")).toList());
   }
 }

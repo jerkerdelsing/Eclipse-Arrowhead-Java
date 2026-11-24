@@ -14,7 +14,7 @@ WORKDIR /app
 COPY --from=build /source/target/solocalcloudconfigurator.jar /app/solocalcloudconfigurator.jar
 COPY config /app/config
 COPY catalogs /app/catalogs
-RUN mkdir -p /app/logs && chown -R 10001:10001 /app/logs
+RUN mkdir -p /app/logs /data && chown -R 10001:10001 /app/logs /data && chmod 700 /data
 USER 10001:10001
 # 8496: soLocalCloudConfiguration over mutual TLS. No Docker access: packages are rendered here, never built or run.
 EXPOSE 8496

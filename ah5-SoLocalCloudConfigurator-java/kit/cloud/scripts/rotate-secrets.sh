@@ -133,7 +133,9 @@ generate() {  # $1 = force (rotate) or empty
   created=0
   for key in $(all_keys); do
     current=$(env_get "$ENV_FILE" "$key")
-    if [ "${1:-}" = force ] || [ -z "$current" ] || [ "${current#replace-with-}" != "$current" ]; then
+    # the password of an embedded database opens the system's own database file: a new value would lock the system out
+    force=${1:-}; case "$key" in AH_DB_*) force= ;; esac
+    if [ "$force" = force ] || [ -z "$current" ] || [ "${current#replace-with-}" != "$current" ]; then
       length=32; [ "$key" = AH_CONSUMER_AUTHORIZATION_CRYPTO_KEY ] && length=16
       env_set "$key" "$(random_value "$length")"; created=$((created + 1))
     fi

@@ -35,7 +35,7 @@ The parent enables remote Checkstyle configuration. For a disconnected build wit
 
 ## Deployment
 
-1. Create the module-owned MySQL database using `src/main/resources/database/create_empty_db.sql` and `create_tables.sql`. Provision a database account with SELECT/INSERT on `ah_onboarding.logs`; the application uses `ddl-auto=validate` and does not manage the schema.
+1. The schema `src/main/resources/database/schema.sql` is applied by the system itself at start to its own embedded database (volume `/data`); Hibernate then validates it. Set its password through `DB_PASSWORD_FILE` before the first start.
 2. Supply a v5 **system-profile** HTTPS server certificate for `Onboarding.<cloud>.<organization>.arrowhead.eu`, with its private key/chain in a PKCS#12 keystore. Use a separate trust store containing the applicable cloud/manufacturer roots. Client authentication must be `need`: every caller, including an enrolling device, presents a trusted client certificate.
 3. Deploy the local-cloud CertificateAuthority and grant Onboarding its operations: ConsumerAuthorization policies for `certificateSigning`, `certificateValidation`, `certificateAuthorityManagement` `revoke-certificate`, Authentication `identityManagement` `identity-mgmt-create`/`-remove` and Blacklist `blacklistManagement` `create`/`remove`; ServiceRegistry management whitelist and direct access for `device-create`, `device-update`, `device-remove`, `system-remove` (the test clouds' `scripts/configure-onboarding-policy.sh` and `compose.yaml`).
 4. Configure the required environment variables listed below and the registry address/port.

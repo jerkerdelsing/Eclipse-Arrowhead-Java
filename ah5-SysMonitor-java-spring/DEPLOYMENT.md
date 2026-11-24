@@ -4,7 +4,7 @@ This folder owns the complete source, build, JAR, image, configuration and Compo
 
 ## Build
 
-Run `mvn -B clean verify` here with Java 21 and Maven 3.9. The output is `target/arrowhead-sysmonitor-5.3.0.jar`. `docker compose build` builds the application image `arrowhead-sysmonitor-standalone:5.3.0` and the database image `arrowhead-sysmonitor-standalone-db:5.3.0` from this folder.
+Run `mvn -B clean verify` here with Java 21 and Maven 3.9. The output is `target/arrowhead-sysmonitor-5.3.0.jar`. `docker compose build` builds the application image `arrowhead-sysmonitor-standalone:5.3.0` from this folder.
 
 ## Provision and start
 
@@ -19,7 +19,7 @@ Run `mvn -B clean verify` here with Java 21 and Maven 3.9. The output is `target
 3. Provision the cloud's rules: ConsumerAuthorization grants for `sysMonitorHistory` consumers and for SysMonitor to consume the providers' `sysMonitor` services, broker permissions for the intake queue and the output topics.
 4. Run `docker compose config --quiet`, then `docker compose up -d --build`.
 
-The database container initialises only its own schema on an empty volume. Its init script then restricts the application account to `SELECT, INSERT, UPDATE, DELETE` (`deployment/database/least-privilege.sh`); schema changes are made as root. The database has no host port and is reachable only on the project's internal network, with TLS required.
+The schema `src/main/resources/database/schema.sql` is applied by the system itself at start to its own embedded database (volume `/data`); Hibernate then validates it. There is no database container, network or port.
 
 The application starts only with the secure profile: TLS with client certificates, outsourced authentication, service authorization, TLS to the brokers and a CRL. See `SECURITY-PROFILE.md` in the distribution root.
 
@@ -34,3 +34,7 @@ The HTTPS API uses port 8475. ServiceRegistry and Authentication are required fo
 `docker compose down` stops only this project and keeps its database volume. `down -v` erases this project's state and must not be used for ordinary stops.
 
 The SysDD is in `documentation/v5.2.2`. The [distribution deployment guide](../DEPLOYMENT-GUIDE.md) covers selecting several systems.
+
+## Data
+
+The system keeps its data in its own embedded database (H2 in `/data`, the project-owned volume `state`). No database container, network or port exists, and no other container may mount that volume: the data is reachable only through the system's services. `DB_PASSWORD_FILE` opens the database file; do not change it after the first start. The schema (`src/main/resources/database/schema.sql`) is applied by the system itself. Back up the volume while the system is stopped.

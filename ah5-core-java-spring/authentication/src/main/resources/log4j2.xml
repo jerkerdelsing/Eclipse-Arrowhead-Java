@@ -24,7 +24,7 @@
 	    	<DefaultRolloverStrategy max="10" />
  			<ThresholdFilter level="${CONSOLE_FILE_LEVEL}" onMatch="ACCEPT" onMismatch="DENY"/>
 		</RollingFile>
-		<JDBC name="MySQLDatabase" tableName="logs">
+		<JDBC name="Database" tableName="logs">
          	<ConnectionFactory class="eu.arrowhead.common.log4j2.JDBCConnectionFactoryForLog4J2" method="getConnection" />
          	<Column name="log_id" pattern="%u" />
          	<Column name="entry_date" isEventTimestamp="true" />
@@ -42,13 +42,13 @@
         </Root>
 		<Logger name="eu.arrowhead" level="ALL" additivity="true" />
  		<AsyncLogger name="eu.arrowhead" level="ALL" additivity="true">
-            <AppenderRef ref="MySQLDatabase" />
+            <AppenderRef ref="Database" />
     	</AsyncLogger>
  		<AsyncLogger name="org" level="WARN" additivity="true">
-            <AppenderRef ref="MySQLDatabase" />
+            <AppenderRef ref="Database" />
     	</AsyncLogger>
  		<AsyncLogger name="com" level="WARN" additivity="true">
-            <AppenderRef ref="MySQLDatabase" />
+            <AppenderRef ref="Database" />
     	</AsyncLogger>
     </Loggers>
 </Configuration>

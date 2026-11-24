@@ -23,11 +23,11 @@ The difference is the level. LocalCloudConfigurator fills one local cloud with s
 | Support system | `sosconfigurator serve` (default; container in the ColonyOS stack) | Spring Boot application on the Arrowhead common library (`vendor/`). Service `sosConfiguration` on port 8494 (mutual TLS, CERT_AUTH): `catalog` (GET `/api/catalog`), `status` (GET `/api/status`), `plan` (POST `/api/plan`), `submit-deployment` (POST `/api/deployments`), `list-deployments` (GET `/api/deployments`), `get-deployment` (GET `/api/deployments/{id}`); `generalManagement` (`get-log`, `get-config`) for Sysop; sysMonitor |
 | Access | `security/SosAccessFilter` | Sysop, the systems of `sos.api.whitelist`, and systems with a ConsumerAuthorization grant of the operation |
 | Operator console | port 8495, published on `127.0.0.1` only | The UI at `/` and the same `/api` operations after a password login (`POST /api/session`, HttpOnly SameSite cookie, scrypt hash, lockout per client, Host/Origin check). Browsers need no client certificate |
-| Records | MySQL schema `ah_sosconfigurator` (`sosconfigurator-db`) | Who submitted which SoS request and the plan the policies allowed; operational logs. The workflow state stays in ColonyOS |
+| Records | Embedded database `ah_sosconfigurator` (H2, volume `sos-state`) | Who submitted which SoS request and the plan the policies allowed; operational logs. The workflow state stays in ColonyOS |
 | Executors | `sosconfigurator executor --sos.role=relay` and `--sos.role=cloud:<Name>` (host processes, non-web Spring applications) | Serve `sos.status` and `sos.step` for their own role only |
 | Step scripts | `scripts/sos-cloud.sh`, `scripts/sos-relay.sh` | Run by the executors. A cloud step uses the cloud's own `lib-policies.sh` as Sysop |
 | ColonyOS client | `colony/` | ColonyOS v1.9.10 RPC in Java: secp256k1 + SHA3-256 signatures, workflows, assignment and registration. There is no Java ColonyOS SDK |
-| ColonyOS stack | `deploy/colonyos/compose.yaml` | TimescaleDB, Colonies server v1.9.10 (`127.0.0.1:50081`), the configurator and its database; colony `arrowhead-sos`; subnet `10.240.91.0/24`; the configurator also joins the selected cloud network |
+| ColonyOS stack | `deploy/colonyos/compose.yaml` | TimescaleDB, Colonies server v1.9.10 (`127.0.0.1:50081`), the configurator (with its embedded database); colony `arrowhead-sos`; subnet `10.240.91.0/24`; the configurator also joins the selected cloud network |
 
 ```
 operator ──UI/API──▶ SoSConfigurator ──workflow──▶ Colonies server ◀──assign── relay executor  ──▶ Arrowhead-relay (check)

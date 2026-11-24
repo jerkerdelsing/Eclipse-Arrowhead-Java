@@ -9,7 +9,6 @@ certificates). Idempotent. Adds:
   - every secret of compose.yaml: missing values in .env (random), and secrets/<NAME> (the compose file is JSON, which
     rotate-secrets.sh files does not parse),
   - the certificate of LocalCloudManager (SAN cloud-monitor-api),
-  - TLS certificates of every database of compose.yaml,
   - PKCS#12 key/trust stores in the layout of the primary deployments: security/primary-stores/<System>/.
 """
 from __future__ import annotations
@@ -58,8 +57,6 @@ SYSTEMS = {
     "TranslationManager": ("translation-manager", "AH_PW_TM", "AH_STORE_PW_TM"),
 }
 NEW_CERTS = {"local-cloud-manager-spring": ("LocalCloudManager", "cloud-monitor-api")}
-# every MySQL database of the cloud gets a TLS certificate of this cloud's CA (SAN: its service name)
-DATABASES = sorted(n for n in COMPOSE["services"] if n.endswith("-db"))
 
 
 def run(*cmd: str) -> None:
@@ -116,27 +113,6 @@ def issue(file_name: str, common_name: str, sans: list[str], usage: str) -> None
     key.chmod(0o600)
 
 
-def database_certificate(host: str) -> None:
-    d = X509 / "db" / host
-    d.mkdir(parents=True, exist_ok=True)
-    if not (d / "server.crt").exists():
-        ext = d / "server.ext"
-        ext.write_text("basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\n"
-                       f"extendedKeyUsage=serverAuth\nsubjectAltName=DNS:{host},DNS:localhost\n")
-        run("openssl", "genpkey", "-algorithm", "RSA", "-pkeyopt", "rsa_keygen_bits:3072", "-out", str(d / "server.key"))
-        run("openssl", "req", "-new", "-sha256", "-key", str(d / "server.key"), "-out", str(d / "server.csr"),
-            "-subj", f"/C=SE/O={ORG}/OU=Arrowhead Databases/CN={host}")
-        run("openssl", "x509", "-req", "-sha256", "-days", "825", "-in", str(d / "server.csr"), "-CA",
-            str(X509 / "ca.crt"), "-CAkey", str(CA_KEY), "-CAcreateserial", "-extfile", str(ext),
-            "-out", str(d / "server.crt"))
-        (d / "server.csr").unlink()
-        ext.unlink()
-    shutil.copy2(X509 / "ca.crt", d / "ca.crt")
-    (d / "server.key").chmod(0o600)
-    (d / "server.crt").chmod(0o644)
-    (d / "ca.crt").chmod(0o644)
-
-
 def aliases(store: pathlib.Path, password: str) -> set[str]:
     out = subprocess.run(["keytool", "-list", "-keystore", str(store), "-storepass", password], capture_output=True, text=True)
     return {line.split(",")[0].strip().lower() for line in out.stdout.splitlines() if "Entry," in line} if out.returncode == 0 else set()
@@ -182,8 +158,6 @@ def main() -> None:
     added = ensure_secrets(sorted(set(needed)))
     for file_name, (system, alias) in NEW_CERTS.items():
         issue(file_name, f"{system}.{CLOUD}", [f"DNS:{alias}", "DNS:localhost", "IP:127.0.0.1"], "serverAuth,clientAuth")
-    for host in DATABASES:
-        database_certificate(host)
     values = env_values()
     for system, (file_name, _, store_secret) in SYSTEMS.items():
         stores(system, file_name, values[store_secret])

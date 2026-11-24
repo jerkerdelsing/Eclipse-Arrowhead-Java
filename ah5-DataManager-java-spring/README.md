@@ -57,7 +57,7 @@ Both Arrowhead 5.2.2 test clouds (`../Arrowhead-test-cloud` and `../Arrowhead-te
 
 ## Database
 
-DataManager owns the `ah_datamanager` schema. Initialize MySQL from `src/main/resources/database/create_empty_db.sql` before starting the application. This separation is intentional in Arrowhead 5; the system no longer writes to the shared v4 database.
+DataManager owns the `ah_datamanager` schema. The schema `src/main/resources/database/schema.sql` is applied by the system itself at start to its own embedded database (volume `/data`); Hibernate then validates it. This separation is intentional in Arrowhead 5; the system no longer writes to the shared v4 database.
 
 ## Build
 

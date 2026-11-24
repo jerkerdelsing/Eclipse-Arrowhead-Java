@@ -51,7 +51,7 @@ The host must reach the NTP servers on UDP port 123.
 
 ## Database
 
-TimeManager owns the `ah_timemanager` schema, which holds only its operational log (`generalManagement get-log`). Create it with `src/main/resources/database/create_empty_db.sql` and `grant_privileges.sql`, and set the credentials in `application.properties`.
+TimeManager owns the `ah_timemanager` schema, which holds only its operational log (`generalManagement get-log`). The schema `src/main/resources/database/schema.sql` is applied by the system itself at start to its own embedded database (volume `/data`); Hibernate then validates it.
 
 ## Build
 

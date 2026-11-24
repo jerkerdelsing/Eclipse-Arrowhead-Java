@@ -27,3 +27,7 @@ Use_cases/FA4.0/IoT-SoS-solutions-FA40-vebinar.pptx
 
 # Maven build output
 target/
+
+# embedded databases of development runs
+/ah5-*/data/
+/ah5-core-java-spring/*/data/

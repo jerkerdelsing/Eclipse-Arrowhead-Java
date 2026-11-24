@@ -13,15 +13,9 @@ public final class GraphDBManagerConstants {
 
 	public static final String SYSTEM_NAME = "GraphDBManager";
 
-	// GraphDB (RDF triple store, RDF4J HTTP protocol) holding the historian
-	public static final String GRAPHDB_URL = "graphdb.url";
-	public static final String $GRAPHDB_URL_WD = "${" + GRAPHDB_URL + ":" + GraphDBManagerDefaults.GRAPHDB_URL_DEFAULT + "}";
-	public static final String GRAPHDB_REPOSITORY = "graphdb.repository";
-	public static final String $GRAPHDB_REPOSITORY_WD = "${" + GRAPHDB_REPOSITORY + ":" + GraphDBManagerDefaults.GRAPHDB_REPOSITORY_DEFAULT + "}";
-	public static final String GRAPHDB_USERNAME = "graphdb.username";
-	public static final String $GRAPHDB_USERNAME_WD = "${" + GRAPHDB_USERNAME + ":}";
-	public static final String GRAPHDB_PASSWORD = "graphdb.password";
-	public static final String $GRAPHDB_PASSWORD_WD = "${" + GRAPHDB_PASSWORD + ":}";
+	// directory of the embedded RDF store holding the historian
+	public static final String HISTORIAN_DIRECTORY = "historian.directory";
+	public static final String $HISTORIAN_DIRECTORY_WD = "${" + HISTORIAN_DIRECTORY + ":" + GraphDBManagerDefaults.HISTORIAN_DIRECTORY_DEFAULT + "}";
 
 	public static final String SERVICE_DEF_DATA_PROXY = "graphDataProxy";
 	public static final String SERVICE_DEF_DATA_HISTORIAN = "graphDataHistorian";

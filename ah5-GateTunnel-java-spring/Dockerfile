@@ -12,7 +12,7 @@ RUN apt-get update && apt-get -y upgrade && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /source/target/arrowhead-gatetunnel-5.4.0.jar /app/app.jar
 COPY config /app/config
-RUN mkdir -p /app/logs && chown -R 10001:10001 /app
+RUN mkdir -p /app/logs /data && chown -R 10001:10001 /app /data && chmod 700 /data
 USER 10001:10001
 # 8453: Arrowhead HTTPS API; 8000-8099 control-session pool (bookkeeping); 8200-8299 inter-cloud consumer tunnel listeners
 EXPOSE 8453 8200-8299

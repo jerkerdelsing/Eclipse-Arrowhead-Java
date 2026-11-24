@@ -4,7 +4,7 @@ This folder owns the complete source, build, application image, database image, 
 
 ## Build
 
-`mvn -B clean verify` (Java 21, Maven 3.9) or `docker compose build`, which runs the tests and creates `arrowhead-gatetunnel-standalone:5.3.0` and `arrowhead-gatetunnel-standalone-db:5.3.0`. `-o` builds offline from a populated Maven cache.
+`mvn -B clean verify` (Java 21, Maven 3.9) or `docker compose build`, which runs the tests and creates `arrowhead-gatetunnel-standalone:5.3.0`. `-o` builds offline from a populated Maven cache.
 
 ## Provision
 
@@ -13,7 +13,6 @@ This folder owns the complete source, build, application image, database image, 
    - `GateTunnel.p12`: the system identity, alias `GateTunnel.<LOCAL_CLOUD>.<ORGANIZATION>.arrowhead.eu`, profile (dnQualifier) `sy`. The start is refused with any other name or profile, since peers pin that name. `truststore.p12` holds the cloud CA.
    - `crl/ca.crl`: the cloud CA's CRL. Client certificates of the API and of the tunnel listeners, and the certificates of called providers, are checked against it (fail closed).
    - `store-password`, `identity-password` (the system's password in Authentication), `db-password`, `db-root-password`: one value per file, passed as Compose secrets.
-   - `db.crt`, `db.key`, `db-ca.crt`: TLS of the private database. The system connects with `sslMode=verify-full`, so `db.crt` must name `gatetunnel-db`.
    - `gatetunnel-relay-chain.crt` (relay certificate + cross-certificate of the cloud CA), `gatetunnel-relay.key`, `org-ca.crt`: the separate relay identity (`RELAY_*`). It is used for the MQTT relay link and, in `ah-gt-1`, for signing the key exchange.
 3. Register the identity in Authentication and the authorization and orchestration rules for the callers in README.md. Configure `NEIGHBOR_CLOUDS` and, for other organisations, `FEDERATION_PEER_ORGANIZATIONS`. Both peers must use the same `FEDERATION_PROFILE`; `legacy-mtls` is an explicit compatibility choice, never a fallback.
 4. Run `docker compose config --quiet`, then `docker compose up -d --build`.
@@ -31,7 +30,7 @@ the directory `ORGANIZATION_CRL_DIRECTORY` at `/org-crl` (a directory, because t
 
 ## Database
 
-`gatetunnel-db` is MySQL 8.4.11 with TLS required, on an internal network. `deployment/database/init.sql` creates the schema `ah_gatetunnel` (tables `session`, `logs`); `least-privilege.sh` leaves the application account SELECT, INSERT, UPDATE and DELETE only. The schema is validated at start, never changed. Inter-cloud sessions are kept in memory and end with the process. Control sessions closed longer than `SESSION_MAX_AGE_SECONDS` are removed by a scheduled job, which returns their ports to the pool. There is no migration from the 5.2.2 SQLite store, because sessions are ephemeral.
+The schema `src/main/resources/database/schema.sql` is applied by the system itself at start to its own embedded database (volume `/data`); Hibernate then validates it. Inter-cloud sessions are kept in memory and end with the process. Control sessions closed longer than `SESSION_MAX_AGE_SECONDS` are removed by a scheduled job, which returns their ports to the pool. There is no migration from the 5.2.2 SQLite store, because sessions are ephemeral.
 
 ## Ports
 
@@ -47,3 +46,7 @@ Relay server certificate (security finding SOS-6, 2026-11-10): `RELAY_CRL_FILE` 
 `/org-crl/org-ca.crl`) is the organisation CA's CRL. The relay's server certificate is checked against it on every
 connection, fail closed (missing, expired, unsigned or revoking CRL refuses the relay), as in the Gatekeeper. It is
 mandatory; the GateTunnel refuses to start without it.
+
+## Data
+
+The system keeps its data in its own embedded database (H2 in `/data`, the project-owned volume `state`). No database container, network or port exists, and no other container may mount that volume: the data is reachable only through the system's services. `DB_PASSWORD_FILE` opens the database file; do not change it after the first start. The schema (`src/main/resources/database/schema.sql`) is applied by the system itself. Back up the volume while the system is stopped.

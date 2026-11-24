@@ -92,14 +92,14 @@ Both operations return the snapshot:
 
 `{"providers":[]}` keeps a scope managed but unavailable; `{"rules":[]}` removes every managed scope. The API rejects null/duplicate scopes, duplicate provider IDs and invalid priorities without replacing existing state. LocalCloudManager has query permission only; it edits the plant through PDE rather than overwriting DSO rules.
 
-1. Build the common DTOs, DSO and PDE together, and rebuild ServiceRegistry to activate the reservation of the new management service definition. On an existing DSO database, apply `ah5-core-java-spring/serviceorchestration-dynamic/src/main/resources/database/patch/database_patch_pde_dso.sql` before starting the upgraded DSO (`ddl-auto=validate`). Fresh databases include the table in `create_tables.sql`.
+1. Build the common DTOs, DSO and PDE together, and rebuild ServiceRegistry to activate the reservation of the new management service definition. Fresh databases include the table in `create_tables.sql`.
 2. In the Java test cloud, `make up` and `make up-plantdescriptionengine` run `scripts/migrate-dso-plant-rules-db.sh` and configure the scoped dependency policies. These targets require the rebuilt DSO and PDE images. They do not migrate another language implementation.
 3. Wait until PDE reports the active plant in force, then pull from `DynamicServiceOrchestration` as the consumer to verify the engineered provider and authorization. Test loss of the primary provider, fallback priority, an unauthorized provider and deactivation.
 4. Existing SimpleStore rows are not imported or automatically deleted. After verification, optionally remove only the legacy rows with `createdBy=PlantDescriptionEngine`; retain operator-owned SSO rules if still used. SimpleStore can remain available independently, but PDE no longer requires it. Avoid rolling back DSO alone while relying on these managed scopes; coordinate rollback of PDE and its orchestration backend.
 
 ## Database
 
-The PDE owns the `ah_plantdescriptionengine` schema, which holds the `plant_description`, `pde_alarm` and `logs` tables. Create it with `src/main/resources/database/create_empty_db.sql` and `grant_privileges.sql`.
+The PDE owns the `ah_plantdescriptionengine` schema, which holds the `plant_description`, `pde_alarm` and `logs` tables. The schema `src/main/resources/database/schema.sql` is applied by the system itself at start to its own embedded database (volume `/data`); Hibernate then validates it.
 
 ## Build
 

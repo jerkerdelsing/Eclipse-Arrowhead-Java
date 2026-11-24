@@ -14,7 +14,6 @@
   <description>Independently buildable DataManager with private vendored Arrowhead library source</description>
   <properties>
     <!-- release 5.3.0 dependency review: Spring Boot manages 3.5.10, which has GHSA-4jq2-8v3c-97w8, GHSA-fhx5-2xqw-2cgm, GHSA-grfq-r75j-rw9x, GHSA-h599-m3w5-9m7x -->
-    <mariadb.version>3.5.11</mariadb.version>
     <java.version>21</java.version>
     <mvn.compiler.version>3.13.0</mvn.compiler.version>
     <mvn.compile.target>21</mvn.compile.target>
@@ -83,15 +82,9 @@
       <artifactId>spring-boot-starter-integration</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.mariadb.jdbc</groupId>
-      <artifactId>mariadb-java-client</artifactId>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
       <scope>runtime</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>com.github.waffle</groupId>
-          <artifactId>waffle-jna</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.lmax</groupId>

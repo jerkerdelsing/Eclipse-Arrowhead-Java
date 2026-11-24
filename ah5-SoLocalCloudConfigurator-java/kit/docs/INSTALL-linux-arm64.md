@@ -13,7 +13,7 @@ A 32-bit OS (armhf) is not supported: `uname -m` must print `aarch64`.
 | Storage | 32 GB on SSD or NVMe | 64 GB SSD; avoid SD cards for the databases (wear, latency) |
 
 On small devices choose a lean local-cloud design: the core systems plus the support systems the device needs. Every
-system with a database adds a MySQL container.
+system keeps its data in an embedded database in its own volume.
 
 ## Software
 

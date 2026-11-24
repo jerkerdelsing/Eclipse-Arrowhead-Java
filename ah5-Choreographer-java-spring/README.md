@@ -52,7 +52,7 @@ Orchestration for an executor uses DynamicServiceOrchestration `serviceOrchestra
 
 ## Database
 
-Choreographer owns the `ah_choreographer` schema with these tables: `plan`, `plan_action`, `plan_step`, `plan_step_connection`, `executor`, `executor_service_definition`, `plan_session`, `session_step`, `worklog` and `logs`. Create the schema with the scripts in `src/main/resources/database/`: `create_empty_db.sql`, then `create_tables.sql`, then `grant_privileges.sql`. Hibernate validates the schema at start-up.
+Choreographer owns the `ah_choreographer` schema with these tables: `plan`, `plan_action`, `plan_step`, `plan_step_connection`, `executor`, `executor_service_definition`, `plan_session`, `session_step`, `worklog` and `logs`. The system applies `src/main/resources/database/schema.sql` at start to its own embedded database (volume `/data`). Hibernate validates the schema at start-up.
 
 ## Build
 
@@ -92,7 +92,6 @@ Both 5.2.2 test clouds (`Arrowhead-test-cloud`, `Arrowhead-test-cloud-go`) deplo
   - `choreographerSession` → `CHOREOGRAPHER_SESSION_CLIENTS`;
   - `choreographerExecutor` → `CHOREOGRAPHER_EXECUTORS` (both default `["LocalCloudManager"]`);
   - `sysMonitor` → SysMonitor.
-- **Database:** the clouds run many MySQL servers, so `choreographer-db` runs with `--innodb-use-native-aio=0` to stay within the kernel AIO limit.
 - **Executors:** none is deployed. An executor needs a certificate, an Authentication identity, a ServiceRegistry system entry, the `choreographerExecutor` grant and grants for its step services.
 
 Verified in both clouds with a temporary mTLS executor (since removed):
