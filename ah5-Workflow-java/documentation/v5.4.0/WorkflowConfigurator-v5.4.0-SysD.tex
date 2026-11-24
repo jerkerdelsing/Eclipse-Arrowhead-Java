@@ -43,7 +43,7 @@
 \ArrowheadType{System Description}
 \ArrowheadTypeShort{SysD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-23}
+\ArrowheadDate{2026-11-24}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -91,7 +91,7 @@ editor in a browser console in which an engineer selects a configured local clou
 WorkflowExecutors' capabilities in that cloud, and draws a workflow: actions, steps, transitions with conditions,
 dependencies, inputs and policies. The editor checks the drawing continuously, explains each finding with help on how
 to fix it, and stores the workflow as a recipe in the WorkflowManager when it validates. The same operations are
-offered as the Arrowhead service \texttt{workflowConfiguration} for other engineering tools.
+offered as the Arrowhead service \texttt{workflow\allowbreak{}Configuration} for other engineering tools.
 
 \begin{figure}[ht!]
   \centering
@@ -155,13 +155,15 @@ stored recipes. Import and export use the recipe JSON.
 \label{sec:properties}
 \subsubsection{Functional properties of the system}
 \begin{itemize}
-\item Cloud directory: the live cloud from the ServiceRegistry (\texttt{serviceRegistryManagement} system-query and
+\item Cloud directory: the live cloud from the ServiceRegistry (\texttt{service\allowbreak{}Registry\allowbreak{}Management} system-query and
 service-query, with a discovery fallback), LocalCloudConfigurator designs and SoLC member clouds; each source optional.
 \item Service and executor listing with operations, interfaces and capabilities; \texttt{sysMonitor} and
-\texttt{generalManagement} hidden.
+\texttt{general\allowbreak{}Management} hidden.
 \item Graphical editor (static web application): state-machine and sequence views, inspector, condition builder,
 undo, arrange with label placement, import/export, local checks with the validator's codes and per-finding help.
-\item Forwarding of validate, store, list and get to the WorkflowManager's \texttt{workflowRecipe}.
+\item Forwarding of validate, store, list and get to the WorkflowManager's \texttt{workflow\allowbreak{}Recipe}; the list asks for
+summaries, and a recipe document is read only when it is opened.
+\item Retry policy in the step inspector: attempts, reaction to ERROR (\texttt{rebind} or \texttt{retry}) and backoff.
 \end{itemize}
 
 \subsubsection{Configuration of system properties}
@@ -188,9 +190,9 @@ Stateless apart from console login sessions.
 \begin{itemize}
 \item Services of a cloud other than the live one cannot be listed (its ServiceRegistry is not reachable); the editor lets
 the engineer name service definitions.
-\item The console is meant for loopback access; exposing it requires an explicit \texttt{console.address} and allowed
+\item The console is meant for loopback access; exposing it requires an explicit \texttt{console.\allowbreak{}address} and allowed
 hosts.
-\item The configurator does not start sessions; that is \texttt{workflowInstance} of the WorkflowManager.
+\item The configurator does not start sessions; that is \texttt{workflow\allowbreak{}Instance} of the WorkflowManager.
 \end{itemize}
 
 \newpage
@@ -207,17 +209,17 @@ IDD in this documentation set.
 \hline
 \rowcolor{gray!33} Service & Operations & Documents \\ \hline
 \endhead
-\texttt{workflowConfiguration} & list-clouds, list-services, list-executors, list-recipes, get-recipe, validate-recipe, store-recipe & \texttt{WorkflowConfigurator-v5.4.0-workflowConfiguration-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{generalManagement} & get-log, get-config & \texttt{Workflow-v5.4.0-generalManagement-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflow\allowbreak{}Configuration} & list-clouds, list-services, list-executors, list-recipes, get-recipe, validate-recipe, store-recipe & \texttt{Workflow\allowbreak{}Configurator-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Configuration-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{general\allowbreak{}Management} & get-log, get-config & \texttt{Workflow-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}general\allowbreak{}Management-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
 \end{longtable}
 }
 
 
 \subsection{Consumed services}
 All three workflow systems use the core systems the same way: at start-up they log in at the Authentication
-system (\texttt{identity}) and register their services in the ServiceRegistry (\texttt{serviceDiscovery.register});
-on every incoming request they verify the caller's identity token (\texttt{identity.identity-verify}) and, with
-\texttt{service.authorization.enabled}, the caller's grant (\texttt{authorization.verify} of ConsumerAuthorization);
+system (\texttt{identity}) and register their services in the ServiceRegistry (\texttt{service\allowbreak{}Discovery.\allowbreak{}register});
+on every incoming request they verify the caller's identity token (\texttt{identity.\allowbreak{}identity-\allowbreak{}verify}) and, with
+\texttt{service.\allowbreak{}authorization.\allowbreak{}enabled}, the caller's grant (\texttt{authorization.\allowbreak{}verify} of ConsumerAuthorization);
 at shutdown they revoke their services and log out.
 
 {\small
@@ -226,14 +228,14 @@ at shutdown they revoke their services and log out.
 \hline
 \rowcolor{gray!33} Service & Provider & Operations & Purpose \\ \hline
 \endhead
-\texttt{serviceDiscovery} & ServiceRegistry & register, revoke, lookup & Registration; executor and fallback discovery. \\ \hline
-\texttt{serviceRegistryManagement} & ServiceRegistry & system-query, service-query & Systems and services of the live cloud (needs a grant and the \texttt{authorization} management policy). \\ \hline
+\texttt{service\allowbreak{}Discovery} & ServiceRegistry & register, revoke, lookup & Registration; executor and fallback discovery. \\ \hline
+\texttt{service\allowbreak{}Registry\allowbreak{}Management} & ServiceRegistry & system-query, service-query & Systems and services of the live cloud (needs a grant and the \texttt{authorization} management policy). \\ \hline
 \texttt{identity} & Authentication & login, logout, identity-verify & Own identity; verification of callers. \\ \hline
 \texttt{authorization} & ConsumerAuthorization & verify & Provider-side authorization. \\ \hline
-\texttt{workflowRecipe} & WorkflowManager & validate, register, query, get & Validation and storage. \\ \hline
-\texttt{localCloudConfiguration} & LocalCloudConfigurator & catalog, list-configurations & Local-cloud designs. \\ \hline
-\texttt{soLocalCloudConfiguration} & SoLocalCloudConfigurator & list-designs, get-design & SoLC member clouds (when \texttt{workflow.configurator.solc.enabled}). \\ \hline
-\texttt{sysMonitor (AMQP)} & SysMonitor broker & publish & When \texttt{sysmonitor.enabled}. \\ \hline
+\texttt{workflow\allowbreak{}Recipe} & WorkflowManager & validate, register, query, get & Validation and storage. \\ \hline
+\texttt{local\allowbreak{}Cloud\allowbreak{}Configuration} & LocalCloudConfigurator & catalog, list-configurations & Local-cloud designs. \\ \hline
+\texttt{so\allowbreak{}Local\allowbreak{}Cloud\allowbreak{}Configuration} & So\allowbreak{}Local\allowbreak{}Cloud\allowbreak{}Configurator & list-designs, get-design & SoLC member clouds (when \texttt{workflow.\allowbreak{}configurator.\allowbreak{}solc.\allowbreak{}enabled}). \\ \hline
+\texttt{sysMonitor (AMQP)} & SysMonitor broker & publish & When \texttt{sysmonitor.\allowbreak{}enabled}. \\ \hline
 \end{longtable}
 }
 
@@ -247,29 +249,30 @@ TLS handshake.
 
 \subsection{Security model}
 \begin{itemize}
-\item \textbf{Secure mode only in deployment.} The deployment configuration (\texttt{deployment/*.properties}) enables
-TLS with client authentication (\texttt{server.ssl.client-auth=need}, TLS 1.3 and 1.2), outsourced authentication with
+\item \textbf{Secure mode only in deployment.} The deployment configuration (\texttt{deployment/\allowbreak{}*.\allowbreak{}properties}) enables
+TLS with client authentication (\texttt{server.\allowbreak{}ssl.\allowbreak{}client-\allowbreak{}auth=\allowbreak{}need}, TLS 1.3 and 1.2), outsourced authentication with
 identity tokens bound to the client certificate, interface policy \texttt{CERT\_AUTH} and the CRL check. The packaged
-defaults without TLS exist for development and unit tests (\texttt{workflow.standalone}) and must not be used in a
+defaults without TLS exist for development and unit tests (\texttt{workflow.\allowbreak{}standalone}) and must not be used in a
 cloud.
 \item \textbf{Certificates.} The system has an Arrowhead system certificate
-\texttt{<System>.<cloud>.<organisation>.arrowhead.eu} issued by the local cloud CA, kept in a PKCS\#12 key store; the
+\texttt{<System>.\allowbreak{}<cloud>.\allowbreak{}<organisation>.\allowbreak{}arrowhead.\allowbreak{}eu} issued by the local cloud CA, kept in a PKCS\#12 key store; the
 trust store holds the cloud CA. Non-Arrowhead certificates are refused at the TLS layer.
 \item \textbf{Provider-side authorization.} Every operation of the registered services (other than management) is
-checked against ConsumerAuthorization (\texttt{authorization.verify}) for the calling system, the service definition
-and the operation (route tables \texttt{ServiceOperations} and \texttt{ConfiguratorOperations}). A missing grant gives
+checked against ConsumerAuthorization (\texttt{authorization.\allowbreak{}verify}) for the calling system, the service definition
+and the operation (route tables \texttt{Service\allowbreak{}Operations} and \texttt{Configurator\allowbreak{}Operations}). A missing grant gives
 403.
-\item \textbf{Management.} \texttt{generalManagement} and \texttt{workflowManagement} are protected by
-\texttt{management.policy=sysop-only}.
-\item \textbf{Data protection.} All service traffic is encrypted by TLS. The WorkflowManager's database connection uses
-TLS with server certificate verification (\texttt{sslMode=verify-full}). Secrets (store, identity and database
-passwords, the console password hash) come from container secrets (\texttt{configtree:/run/secrets/}), not from the
-image.
+\item \textbf{Management.} \texttt{general\allowbreak{}Management} and \texttt{workflow\allowbreak{}Management} are protected by
+\texttt{management.\allowbreak{}policy=\allowbreak{}sysop-\allowbreak{}only}.
+\item \textbf{Data protection.} All service traffic is encrypted by TLS. Each system is responsible for its own data:
+its database runs inside its own process, so there is no database connection, port or account that another system could
+use, and its data is reachable only through its services. Secrets (store and identity passwords, the WorkflowManager's
+database password, the console password hash) come from container secrets (\texttt{configtree:/\allowbreak{}run/\allowbreak{}secrets/}), not from
+the image.
 \end{itemize}
 
 
 \subsection{Console}
-The browser console is a second connector (default \texttt{127.0.0.1:8485}). It authenticates the operator with a
+The browser console is a second connector (default \texttt{127.\allowbreak{}0.\allowbreak{}0.\allowbreak{}1:8485}). It authenticates the operator with a
 password whose scrypt hash is configured as a secret, keeps the session in an HttpOnly cookie \texttt{wfc\_session},
 checks the \texttt{Host} and \texttt{Origin} headers and locks out after five failed logins. A console session is not
 an Arrowhead identity; the console cannot be reached on the Arrowhead connector, and the Arrowhead service cannot be
@@ -287,6 +290,7 @@ reached without mTLS and a grant.
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: system description of the WorkflowConfigurator, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Data protection; recipe summaries and the retry policy in the editor. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

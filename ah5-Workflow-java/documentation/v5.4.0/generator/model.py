@@ -90,12 +90,12 @@ struct("Policy", "Execution policy of a step. Every field other than \\texttt{le
        ("quantity", "Integer", "Number of executions; only 1 is accepted (check M01).", False),
        ("timeoutSeconds", "Duration", "Extension x-timeout: the step fails when it runs longer.", False),
        ("nominalDurationSeconds", "Duration", "Expected duration, used to check lease durations (check L04).", False),
-       ("retry", "Retry", "Extension x-rebind: behaviour on \\texttt{ERROR}.", False),
+       ("retry", "Retry", "Extensions x-rebind and x-retry: behaviour on \\texttt{ERROR}.", False),
        ("lease", "LeasePolicy", "The step's role for a shared resource.", False),
        ("localCloudOnly", "Boolean", "Whether orchestration may return providers of other clouds (default true).", False))
 struct("Retry", "Extensions x-rebind and x-retry.",
-       ("maxAttempts", "Integer", "Maximum attempts of the step in one session.", False),
-       ("onError", "OnError", "What an \\texttt{ERROR} report causes.", False),
+       ("maxAttempts", "Integer", "Maximum attempts of the step in one session, counting every work item of the step; at least 1, default 1 (no further attempt).", False),
+       ("onError", "OnError", "What an \\texttt{ERROR} report causes while attempts remain. State it explicitly: the recipe schema names \\texttt{rebind} as default, but the Java WorkflowManager fails the session when it is absent.", False),
        ("backoffSeconds", "Duration", "Pause before a same-executor retry (\\texttt{onError} = \\texttt{retry}); 0--600, default 1.", False))
 struct("LeasePolicy", "The role of a step for a shared resource.",
        ("resource", "Name", "A declared resource.", True),
@@ -106,7 +106,7 @@ enum("DispatchMode", "How a step reaches an executor.",
      ("event", "Reserved for EventHandler notification; currently handled as \\texttt{pull}."))
 enum("OnError", "Reaction to an \\texttt{ERROR} report.",
      ("rebind", "Exclude the executor for this session and bind the step again."),
-     ("retry", "Keep the executor: after \\texttt{backoffSeconds} dispatch the step to the same executor again (extension x-retry; for transient provider-side failures, the provider must accept a repeated call)."),
+     ("retry", "Keep the executor: after \\texttt{backoffSeconds} dispatch the step to the same executor again, or to the least-loaded candidate when that executor is no longer available (extension x-retry; for transient provider-side failures, the provider must accept a repeated call)."),
      ("abort", "Fail the session."))
 enum("LeaseMode", "Role of a step for a shared resource.",
      ("reserve", "Reserves the resource; its result carries the lease token."),
@@ -194,7 +194,7 @@ struct("Session", "The state $z = (M, M_A, \\beta, \\varepsilon, \\xi, status)$ 
        ("status", "SessionStatus", "\\texttt{running}, \\texttt{completed} or \\texttt{failed}.", True),
        ("dispatch", "DispatchMode", "Effective dispatch mode.", True),
        ("failure", "String", "Why the session failed.", False),
-       ("extensions", "List<String>", "Extensions used (\\texttt{x-rebind}, \\texttt{x-abort}, \\texttt{x-timeout}, \\texttt{x-skip}, \\ldots); empty when the run stays inside the proven model.", True),
+       ("extensions", "List<String>", "Extensions used: \\texttt{retry} (x-rebind or x-retry; the trace tells them apart), \\texttt{abort}, \\texttt{timeout}, \\texttt{guard} (a step was skipped) and \\texttt{compensation}; empty when the run stays inside the proven model.", True),
        ("stepMarking", "Map<Name,String>", "$M$: \\texttt{inactive}, \\texttt{enabled}, \\texttt{running}, \\texttt{completed} or \\texttt{skipped} per step.", True),
        ("actionMarking", "Map<Name,String>", "$M_A$: \\texttt{inactive}, \\texttt{active} or \\texttt{completed} per action.", True),
        ("modelTransitions", "Integer", "Number of model transitions so far.", True),
@@ -240,7 +240,8 @@ enum("Rule", "Transition rules: the eight rules of~\\cite{varga2026} and the ext
      ("Z-Close", "Every action completed: the session is completed."),
      ("S-FailBind", "No executor/provider could be bound: the session fails."),
      ("S-FailInvoke", "The invocation failed: the session fails."),
-     ("x-rebind", "Extension: the step is bound again after \\texttt{ERROR} or an unreachable executor."),
+     ("x-rebind", "Extension: after \\texttt{ERROR} the step is enabled again and the executor that failed is excluded."),
+     ("x-retry", "Extension: after \\texttt{ERROR} the step is enabled again for the same executor, once its backoff is over."),
      ("x-abort", "Extension: the session was aborted."),
      ("x-timeout", "Extension: a step exceeded its timeout."),
      ("x-skip", "Extension: a step was skipped because no guarded transition to it was taken."))
@@ -275,9 +276,9 @@ enum("ReportStatus", "Executor reports and the rules they cause.",
      ("BOUND", "Orchestration succeeded (completes S-Bind)."),
      ("BIND\\_FAILED", "Orchestration returned no provider: the next executor is tried, otherwise S-FailBind."),
      ("SUCCESS", "The provider answered (S-Done)."),
-     ("ERROR", "Recoverable failure: x-rebind when the step has a retry policy, otherwise S-FailInvoke."),
-     ("FATAL\\_ERROR", "Unrecoverable failure (S-FailInvoke)."),
-     ("ABORTED", "The work item was aborted."))
+     ("ERROR", "Recoverable failure: x-rebind or x-retry when the step's retry policy allows another attempt, otherwise the session fails (S-FailInvoke, or S-FailBind when the step was not bound yet)."),
+     ("FATAL\\_ERROR", "Unrecoverable failure: S-FailInvoke, or S-FailBind when the step was not bound yet."),
+     ("ABORTED", "Acknowledges an abort; by itself it does not change the session."))
 struct("WorkItemRef", "Identifies a work item.",
        ("workItemId", "WorkItemId", "The work item.", True))
 struct("ExecutorInfo", "What an executor declares about itself.",
@@ -371,13 +372,15 @@ struct("WorkItemRecord", "Book-keeping of one work item.",
        ("createdAt", "DateTime", "Created.", True),
        ("updatedAt", "DateTime", "Updated.", True))
 enum("WorkItemState", "State of a work item at the WorkflowManager.",
-     ("OPEN", "Published for claiming (pull)."),
+     ("OPEN", "Published for claiming (pull); fails when nobody claims it within the claim timeout."),
      ("DISPATCHED", "Sent to an executor (push)."),
      ("CLAIMED", "Claimed by an executor (pull)."),
      ("BOUND", "The executor reported a provider."),
      ("DONE", "Completed."),
-     ("FAILED", "Failed."),
-     ("ABORTED", "Aborted."))
+     ("FAILED", "Failed; its executor is excluded from later attempts of the step in this session."),
+     ("ABORTED", "Aborted."),
+     ("RETRY\\_WAIT", "Ended with \\texttt{ERROR} under \\texttt{onError} = \\texttt{retry} and waits for its backoff; survives a restart of the WorkflowManager."),
+     ("RETRIED", "Its backoff is over and the step was dispatched again; unlike \\texttt{FAILED} it does not exclude the executor."))
 
 # ---------------------------------------------------------------- workflowConfiguration
 struct("CloudList", "The local clouds the editor can design workflows for.",

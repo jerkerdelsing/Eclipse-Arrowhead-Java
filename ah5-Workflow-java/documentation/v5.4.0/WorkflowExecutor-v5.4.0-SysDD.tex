@@ -43,7 +43,7 @@
 \ArrowheadType{System Design Description}
 \ArrowheadTypeShort{SysDD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-23}
+\ArrowheadDate{2026-11-24}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -133,10 +133,10 @@ SysD of the same name; its produced services are specified by SDs and IDDs in th
 
 \subsection{Implementation language and tools}
 Java~21 and Spring Boot~4 (Spring Framework~7, Spring Security~7), Spring Data JPA with Hibernate, Jackson for JSON,
-Springdoc for the OpenAPI description, built with Maven~3.9 (in the \texttt{maven:3.9-eclipse-temurin-21} image). The
-system builds on the vendored Arrowhead~5.4.0 common library (\texttt{vendor/common-utils},
-\texttt{vendor/data-transfer-objects}): system registration, identity, TLS, management filters and HTTP consumption
-of other services. The source is module \texttt{workflow-executor} of \texttt{Eclipse-Arrowhead-java/ah5-Workflow-java}; the
+Springdoc for the OpenAPI description, built with Maven~3.9 (in the \texttt{maven:3.\allowbreak{}9-\allowbreak{}eclipse-\allowbreak{}temurin-\allowbreak{}21} image). The
+system builds on the vendored Arrowhead~5.4.0 common library (\texttt{vendor/\allowbreak{}common-\allowbreak{}utils},
+\texttt{vendor/\allowbreak{}data-\allowbreak{}transfer-\allowbreak{}objects}): system registration, identity, TLS, management filters and HTTP consumption
+of other services. The source is module \texttt{workflow-\allowbreak{}executor} of \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}java/\allowbreak{}ah5-\allowbreak{}Workflow-\allowbreak{}java}; the
 container image runs the Spring Boot jar on Eclipse Temurin~21.
 
 \subsection{Internal structure}
@@ -147,14 +147,14 @@ container image runs the Spring Boot jar on Eclipse Temurin~21.
 \hline
 \rowcolor{gray!33} Component & Responsibility \\ \hline
 \endhead
-{\footnotesize \texttt{WorkflowExecutorSystemInfo}} & Registration of \texttt{workflowExecution} with metadata \texttt{workflowCapabilities}, \texttt{workflowServices}, \texttt{workflowWorkstation}, \texttt{workflowMode} and \texttt{unrestrictedDiscovery}. \\ \hline
+{\footnotesize \texttt{Workflow\allowbreak{}Executor\allowbreak{}System\allowbreak{}Info}} & Registration of \texttt{workflow\allowbreak{}Execution} with metadata \texttt{workflow\allowbreak{}Capabilities}, \texttt{workflow\allowbreak{}Services}, \texttt{workflow\allowbreak{}Workstation}, \texttt{workflowMode} and \texttt{unrestricted\allowbreak{}Discovery}. \\ \hline
 {\footnotesize \texttt{api.\allowbreak{}http.\allowbreak{}ExecutionAPI,\allowbreak{} GeneralManagementAPI}} & Service controllers; \texttt{start}/\texttt{abort} accept only the configured WorkflowManager or a sysop. \\ \hline
 {\footnotesize \texttt{runtime.\allowbreak{}StepRunner}} & The execution of one work item (lease, orchestrate, compose, invoke, release, report) on a thread pool; abort and status. \\ \hline
 {\footnotesize \texttt{runtime.\allowbreak{}PullLoop}} & Claims work items in pull mode. \\ \hline
 {\footnotesize \texttt{runtime.\allowbreak{}ProviderResolver}} & Pull orchestration with the executor as requester at the configured orchestrator; static providers for development. \\ \hline
 {\footnotesize \texttt{runtime.\allowbreak{}ManagerClient}} & Consumer of workflowWorkItem, workflowContext and workflowLease. \\ \hline
 {\footnotesize \texttt{adapter.\allowbreak{}EquipmentAdapter,\allowbreak{} HttpJsonAdapter,\allowbreak{} Binding}} & Adapter SPI and the generic HTTP(S) JSON adapter. \\ \hline
-{\footnotesize \texttt{api.\allowbreak{}compat.\allowbreak{}ChoreographerCompatAPI,\allowbreak{} ChoreographerCompatRunner,\allowbreak{} init.\allowbreak{}ChoreographerRegistrar}} & Choreographer executor interface; registration on start and unregistration on \texttt{ContextClosedEvent}. \\ \hline
+{\footnotesize \texttt{api.\allowbreak{}compat.\allowbreak{}ChoreographerCompatAPI,\allowbreak{} ChoreographerCompatRunner,\allowbreak{} init.\allowbreak{}ChoreographerRegistrar}} & Choreographer executor interface; registration on start and unregistration on \texttt{Context\allowbreak{}Closed\allowbreak{}Event}. \\ \hline
 {\footnotesize \texttt{security.\allowbreak{}ServiceAuthorizationFilter}} & Provider-side ConsumerAuthorization check. \\ \hline
 \end{longtable}
 }
@@ -176,16 +176,16 @@ Choreographer normalises definitions to camelCase.
 \subsubsection{Security}
 Spring Security filter chains of the common library: TLS client authentication, identity-token verification against
 the Authentication system (outsourced authentication), the management filter and the workflow systems'
-\texttt{ServiceAuthorizationFilter}, which maps method and path to service definition and operation and asks
-ConsumerAuthorization (\texttt{authorization.verify}). Object-level checks (holder, owner, configured manager) are made in
+\texttt{Service\allowbreak{}Authorization\allowbreak{}Filter}, which maps method and path to service definition and operation and asks
+ConsumerAuthorization (\texttt{authorization.\allowbreak{}verify}). Object-level checks (holder, owner, configured manager) are made in
 the service logic and give 403.
 \subsubsection{Power management}
 No specific power management. Thread pools are bounded; the WorkflowManager's watchdog and the executor's pull loop are
 the only periodic activities.
 \subsubsection{Internal monitoring}
-Spring Boot health endpoint (\texttt{WorkflowExecutorHealthIndicator}),
-the common-library log table exposed through \texttt{generalManagement.get-log}, and optional sysMonitor telemetry over
-AMQP (\texttt{sysmonitor.enabled}).
+Spring Boot health endpoint (\texttt{Workflow\allowbreak{}Executor\allowbreak{}Health\allowbreak{}Indicator}),
+the common-library log table exposed through \texttt{general\allowbreak{}Management.\allowbreak{}get-\allowbreak{}log}, and optional sysMonitor telemetry over
+AMQP (\texttt{sysmonitor.\allowbreak{}enabled}).
 \subsubsection{Configuration}
 
 {\small
@@ -199,8 +199,8 @@ AMQP (\texttt{sysmonitor.enabled}).
 \texttt{workflow.\allowbreak{}executor.\allowbreak{}services} & * & Services the executor can run. \\ \hline
 \texttt{workflow.\allowbreak{}executor.\allowbreak{}workstation} & (empty) & Workstation. \\ \hline
 \texttt{workflow.\allowbreak{}executor.\allowbreak{}mode} & push & \texttt{push} or \texttt{pull}. \\ \hline
-\texttt{workflow.\allowbreak{}executor.\allowbreak{}orchestrator} & DynamicServiceOrchestration & The orchestrator asked for providers. \\ \hline
-\texttt{workflow.\allowbreak{}executor.\allowbreak{}unrestricted-\allowbreak{}discovery} & true & Register \texttt{workflowExecution} with \texttt{unrestrictedDiscovery}, so the WorkflowManager finds it under RESTRICTED discovery. \\ \hline
+\texttt{workflow.\allowbreak{}executor.\allowbreak{}orchestrator} & Dynamic\allowbreak{}Service\allowbreak{}Orchestration & The orchestrator asked for providers. \\ \hline
+\texttt{workflow.\allowbreak{}executor.\allowbreak{}unrestricted-\allowbreak{}discovery} & true & Register \texttt{workflow\allowbreak{}Execution} with \texttt{unrestricted\allowbreak{}Discovery}, so the WorkflowManager finds it under RESTRICTED discovery. \\ \hline
 \texttt{workflow.\allowbreak{}executor.\allowbreak{}poll-\allowbreak{}ms} & 500 & Pull interval. \\ \hline
 \texttt{workflow.\allowbreak{}executor.\allowbreak{}threads} & 8 & Work item threads. \\ \hline
 \texttt{workflow.\allowbreak{}executor.\allowbreak{}lease-\allowbreak{}poll-\allowbreak{}ms} & 200 & Lease poll interval while queued. \\ \hline
@@ -218,7 +218,7 @@ AMQP (\texttt{sysmonitor.enabled}).
 \section{Services}
 \label{sec:services}
 \subsection{Produced services}
-All produced services use interface template \texttt{generic\_https}, policy \texttt{CERT\_AUTH} and version 1.0.0 and are
+All produced services use interface template \texttt{generic\_\allowbreak{}https}, policy \texttt{CERT\_AUTH} and version 1.0.0 and are
 registered with every operation's method and path.
 
 {\small
@@ -227,8 +227,8 @@ registered with every operation's method and path.
 \hline
 \rowcolor{gray!33} Service & Operations & Documents \\ \hline
 \endhead
-\texttt{workflowExecution} & service-info, start, abort, get-status & \texttt{WorkflowExecutor-v5.4.0-workflowExecution-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{generalManagement} & get-log, get-config & \texttt{Workflow-v5.4.0-generalManagement-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflow\allowbreak{}Execution} & service-info, start, abort, get-status & \texttt{Workflow\allowbreak{}Executor-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Execution-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{general\allowbreak{}Management} & get-log, get-config & \texttt{Workflow-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}general\allowbreak{}Management-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
 \texttt{Choreographer executor interface} & service-info, start, abort (not registered; under \textbackslash{}texttt\{/workflowexecutor/choreographer\}) & Choreographer executor IDD (Choreographer 5.x) \\ \hline
 \end{longtable}
 }
@@ -241,38 +241,38 @@ registered with every operation's method and path.
 \hline
 \rowcolor{gray!33} Service & Provider & Operations & Purpose \\ \hline
 \endhead
-\texttt{serviceDiscovery} & ServiceRegistry & register, revoke & Registration of \texttt{workflowExecution} with capability metadata. \\ \hline
+\texttt{service\allowbreak{}Discovery} & ServiceRegistry & register, revoke & Registration of \texttt{workflow\allowbreak{}Execution} with capability metadata. \\ \hline
 \texttt{identity} & Authentication & login, logout, identity-verify & Own identity token; verification of callers. \\ \hline
 \texttt{authorization} & ConsumerAuthorization & verify & Provider-side authorization. \\ \hline
-\texttt{serviceOrchestration} & DynamicServiceOrchestration & pull & Provider of each step, with the executor as requester. \\ \hline
-\texttt{workflowWorkItem} & WorkflowManager & claim, report & Pull and reports. \\ \hline
-\texttt{workflowContext} & WorkflowManager & get-parameters, get-results, put-result & $\rho$, $\xi|dep(s)$, $\xi(s)$. \\ \hline
+\texttt{service\allowbreak{}Orchestration} & Dynamic\allowbreak{}Service\allowbreak{}Orchestration & pull & Provider of each step, with the executor as requester. \\ \hline
+\texttt{workflow\allowbreak{}Work\allowbreak{}Item} & WorkflowManager & claim, report & Pull and reports. \\ \hline
+\texttt{workflow\allowbreak{}Context} & WorkflowManager & get-parameters, get-results, put-result & $\rho$, $\xi|dep(s)$, $\xi(s)$. \\ \hline
 \texttt{workflowLease} & WorkflowManager & reserve, poll, renew, release & Shared resources. \\ \hline
 (step services) & Equipment / application systems & as orchestrated & The work itself. \\ \hline
-\texttt{choreographerExecutor} & Choreographer & register, unregister, notify-step-done & Only with \texttt{workflow.choreographer.enabled}. \\ \hline
+\texttt{choreographer\allowbreak{}Executor} & Choreographer & register, unregister, notify-step-done & Only with \texttt{workflow.\allowbreak{}choreographer.\allowbreak{}enabled}. \\ \hline
 \end{longtable}
 }
 
 
 \section{Verification}
 \label{sec:verification}
-Seven unit tests with fake equipment, and the smoke and cloud tests of the WorkflowManager, in which three executors
+Seven unit tests with fake equipment (passed on 2026-11-24), and the smoke and cloud tests of the WorkflowManager, in which three executors
 run push and pull sessions and the plant sees the executors' own certificates. Choreographer compatibility was
 verified against the cloud's Choreographer 5.4.0: a compiled recipe ran as a Choreographer plan on an executor that
-registered itself, reported with \texttt{notify-step-done} and unregistered on shutdown (34/34 checks).
+registered itself, reported with \texttt{notify-\allowbreak{}step-\allowbreak{}done} and unregistered on shutdown (34/34 checks).
 
 
 \section{Implementation variants}
 \label{sec:variants}
 \begin{itemize}
-\item \textbf{Java (reference implementation).} \texttt{Eclipse-Arrowhead-java/ah5-Workflow-java/workflow-executor}, Java 21, Spring
-Boot, built with Maven together with the shared \texttt{workflow-model} module and the vendored Arrowhead~5.4.0 common
+\item \textbf{Java (reference implementation).} \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}java/\allowbreak{}ah5-\allowbreak{}Workflow-\allowbreak{}java/\allowbreak{}workflow-\allowbreak{}executor}, Java 21, Spring
+Boot, built with Maven together with the shared \texttt{workflow-\allowbreak{}model} module and the vendored Arrowhead~5.4.0 common
 library.
-\item \textbf{Go.} Not implemented. No workflow system exists in \texttt{Eclipse-Arrowhead-go}.
-\item \textbf{Rust.} Not implemented. No workflow system exists in \texttt{Eclipse-Arrowhead-rust}.
+\item \textbf{Go.} Not implemented. No workflow system exists in \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}go}.
+\item \textbf{Rust.} Not implemented. No workflow system exists in \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}rust}.
 \end{itemize}
 The workflow systems are therefore not yet interoperable across the three implementations. A Go or Rust port must
-reproduce the IDDs of this set exactly and, for the WorkflowManager, the behaviour of \texttt{workflow-model}: the
+reproduce the IDDs of this set exactly and, for the WorkflowManager, the behaviour of \texttt{workflow-\allowbreak{}model}: the
 recipe schema and decoder, the validator's findings and verdicts, the guard grammar and the transition rules. The
 architecture prescribes conformance vectors (recipe in, verdict and transition trace out) to be run by all three
 implementations; they are not written yet.
@@ -290,6 +290,7 @@ implementations; they are not written yet.
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: system design description of the WorkflowExecutor, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Verification status. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

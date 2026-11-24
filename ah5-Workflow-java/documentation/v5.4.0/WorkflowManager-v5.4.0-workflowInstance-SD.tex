@@ -57,7 +57,7 @@
 \ArrowheadType{Service Description}
 \ArrowheadTypeShort{SD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-23}
+\ArrowheadDate{2026-11-24}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -84,7 +84,7 @@
 
   % Front Page Abstract
   \begin{abstract}
-    This document describes the \texttt{workflowInstance} service of the Eclipse Arrowhead workflow support systems, which starts, observes and aborts workflow sessions. It is provided by the WorkflowManager system, service version 1.0.0, documentation edition 5.4.0.
+    This document describes the \texttt{workflow\allowbreak{}Instance} service of the Eclipse Arrowhead workflow support systems, which starts, observes and aborts workflow sessions. It is provided by the WorkflowManager system, service version 1.0.0, documentation edition 5.4.0.
   \end{abstract}
 
   \vspace*{1cm}
@@ -100,7 +100,7 @@
 
 \section{Overview}
 \label{sec:overview}
-The \texttt{workflowInstance} service starts and observes \emph{sessions}. A session is one
+The \texttt{workflow\allowbreak{}Instance} service starts and observes \emph{sessions}. A session is one
 execution of one immutable recipe version for one subject: a product unit, a control period or a batch. Its state is
 $z = (M, M_A, \beta, \varepsilon, \xi, status)$~\cite{varga2026}: the step and action markings, the service bindings,
 the executor assignment, the stored results and the status. The WorkflowManager advances the state with the transition
@@ -121,7 +121,7 @@ pattern~\cite{derhamy2018workflow}.
 \subsection{How This Service Is Meant to Be Used}
 A consumer starts a session with \oref{start}, naming a registered recipe (and optionally its version), the
 session parameters $\rho$ and the dispatch mode. Alternatively it names a \texttt{product} system: the WorkflowManager
-then retrieves the recipe fragment and parameters from the product's \texttt{workflowProduct} service and stores the
+then retrieves the recipe fragment and parameters from the product's \texttt{workflow\allowbreak{}Product} service and stores the
 results back when the session completes. The owner follows the session with \oref{get-status} and \oref{get-trace} and may
 stop it with \oref{abort}. \oref{query} lists sessions, e.g. all \texttt{running} ones.
 
@@ -129,7 +129,7 @@ stop it with \oref{abort}. \oref{query} lists sessions, e.g. all \texttt{running
 \label{sec:delimitations}
 \begin{itemize}
 \item Failure is absorbing: a failed session never resumes. A new session must be started.
-\item Theorems~1--2 hold only for sessions without extensions. The \texttt{extensions} field and \texttt{withinModel} in the trace say whether a session used retry/rebind, abort, timeout or guarded skipping.
+\item Theorems~1--2 hold only for sessions without extensions. The \texttt{extensions} field and \texttt{withinModel} in the trace say whether a session used rebind or retry, abort, timeout, guarded skipping or lease compensation.
 \item Only the owner (the starting system) or a sysop may abort a session.
 \item Sessions run in one local cloud. Delegation of actions to WorkflowManagers in other clouds is not implemented.
 \item The \texttt{event} dispatch mode is accepted but handled as \texttt{pull}.
@@ -140,7 +140,7 @@ stop it with \oref{abort}. \oref{query} lists sessions, e.g. all \texttt{running
 \newpage
 \section{Service Interface}
 \label{sec:operations}
-This section describes the interface of the \texttt{workflowInstance} service. Each subsection names an abstract operation,
+This section describes the interface of the \texttt{workflow\allowbreak{}Instance} service. Each subsection names an abstract operation,
 an input type and an output type, in that order. The input type is named inside parentheses, while the output type is
 preceded by a colon. Input and output types are only denoted when accepted or returned, respectively, by the operation
 in question. All abstract data types named in this section are defined in Section~\ref{sec:model}. The concrete
@@ -184,7 +184,7 @@ The following interface operations are available.
 \osubsection{start}{StartSessionRequest}{Session}
 Creates a session of an active recipe version (or of the product's recipe), fires the first transitions and dispatches the enabled steps.
 \osubsection{abort}{SessionRef}{Session}
-Aborts a running session (extension x-abort). Its active work items become \texttt{ABORTED} and their executors receive \texttt{workflowExecution.abort}; leases are released when \texttt{workflow.lease.release-on-failure} is set.
+Aborts a running session (extension x-abort). Its active work items become \texttt{ABORTED} and their executors receive \texttt{workflow\allowbreak{}Execution.\allowbreak{}abort}; leases are released when \texttt{workflow.\allowbreak{}lease.\allowbreak{}release-\allowbreak{}on-\allowbreak{}failure} is set.
 \osubsection{query}{SessionFilter}{SessionList}
 Lists sessions, newest first, optionally in one status.
 \osubsection{get-status}{SessionRef}{Session}
@@ -195,7 +195,7 @@ Returns the run: every transition, $\xi$, $\beta$, $\varepsilon$, and whether th
 \newpage
 \section{Information Model}
 \label{sec:model}
-Here, all data objects that can be part of the \texttt{workflowInstance} service are listed in alphabetic order. Each
+Here, all data objects that can be part of the \texttt{workflow\allowbreak{}Instance} service are listed in alphabetic order. Each
 subsection, which describes one type of object, begins with the \textit{struct} keyword (a collection of named fields,
 each with its own data type), the \textit{enum} keyword (a closed set of values) or the \textit{alias} keyword. As a
 complement to the explicitly defined types in this section, there is also a list of implicit primitive types in
@@ -210,8 +210,8 @@ How a step reaches an executor.
 \hline
 \rowcolor{gray!33} Value & Meaning \\ \hline
 \endhead
-\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflowExecution.start} (default). \\ \hline
-\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflowWorkItem.claim}. \\ \hline
+\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflow\allowbreak{}Execution.\allowbreak{}start} (default). \\ \hline
+\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflow\allowbreak{}Work\allowbreak{}Item.\allowbreak{}claim}. \\ \hline
 \texttt{event} & Reserved for EventHandler notification; currently handled as \texttt{pull}. \\ \hline
 \end{longtable}
 }
@@ -233,7 +233,8 @@ Transition rules: the eight rules of~\cite{varga2026} and the extensions (\textt
 \texttt{Z-Close} & Every action completed: the session is completed. \\ \hline
 \texttt{S-FailBind} & No executor/provider could be bound: the session fails. \\ \hline
 \texttt{S-FailInvoke} & The invocation failed: the session fails. \\ \hline
-\texttt{x-rebind} & Extension: the step is bound again after \texttt{ERROR} or an unreachable executor. \\ \hline
+\texttt{x-rebind} & Extension: after \texttt{ERROR} the step is enabled again and the executor that failed is excluded. \\ \hline
+\texttt{x-retry} & Extension: after \texttt{ERROR} the step is enabled again for the same executor, once its backoff is over. \\ \hline
 \texttt{x-abort} & Extension: the session was aborted. \\ \hline
 \texttt{x-timeout} & Extension: a step exceeded its timeout. \\ \hline
 \texttt{x-skip} & Extension: a step was skipped because no guarded transition to it was taken. \\ \hline
@@ -257,11 +258,11 @@ The state $z = (M, M_A, \beta, \varepsilon, \xi, status)$ of a session, as seen 
 \texttt{status} & \mref{SessionStatus} & \texttt{running}, \texttt{completed} or \texttt{failed}. \\ \hline
 \texttt{dispatch} & \mref{DispatchMode} & Effective dispatch mode. \\ \hline
 \texttt{failure} & \pref{String} & Why the session failed. Optional. \\ \hline
-\texttt{extensions} & \pref{List}$<$\pref{String}$>$ & Extensions used (\texttt{x-rebind}, \texttt{x-abort}, \texttt{x-timeout}, \texttt{x-skip}, \ldots); empty when the run stays inside the proven model. \\ \hline
+\texttt{extensions} & \pref{List}$<$\pref{String}$>$ & Extensions used: \texttt{retry} (x-rebind or x-retry; the trace tells them apart), \texttt{abort}, \texttt{timeout}, \texttt{guard} (a step was skipped) and \texttt{compensation}; empty when the run stays inside the proven model. \\ \hline
 \texttt{stepMarking} & \pref{Map}$<$\pref{Name}, \pref{String}$>$ & $M$: \texttt{inactive}, \texttt{enabled}, \texttt{running}, \texttt{completed} or \texttt{skipped} per step. \\ \hline
 \texttt{actionMarking} & \pref{Map}$<$\pref{Name}, \pref{String}$>$ & $M_A$: \texttt{inactive}, \texttt{active} or \texttt{completed} per action. \\ \hline
-\texttt{modelTransitions} & \pref{Integer} & Number of model transitions so far. \\ \hline
-\texttt{transitionBound} & \pref{Integer} & Theorem~1 bound $3|S| + 2|A|$. \\ \hline
+\texttt{model\allowbreak{}Transitions} & \pref{Integer} & Number of model transitions so far. \\ \hline
+\texttt{transition\allowbreak{}Bound} & \pref{Integer} & Theorem~1 bound $3|S| + 2|A|$. \\ \hline
 \texttt{product} & \pref{SystemName} & Product system, when the session came from one. Optional. \\ \hline
 \texttt{createdAt} & \pref{DateTime} & Start time. \\ \hline
 \texttt{updatedAt} & \pref{DateTime} & Time of the last transition. \\ \hline
@@ -338,7 +339,7 @@ Starts one session (one execution of one recipe version for one subject).
 \texttt{subject} & \pref{String} & What the session works on: product unit, control period or batch. Optional. \\ \hline
 \texttt{parameters} & \pref{JsonObject} & Session parameters $\rho$; required parameters must be present. Optional. \\ \hline
 \texttt{dispatch} & \mref{DispatchMode} & Overrides the recipe's dispatch mode. Optional. \\ \hline
-\texttt{product} & \pref{SystemName} & A product system providing \texttt{workflowProduct}: the recipe and parameters are retrieved from it, and the results are stored back at Z-Close. Optional. \\ \hline
+\texttt{product} & \pref{SystemName} & A product system providing \texttt{workflow\allowbreak{}Product}: the recipe and parameters are retrieved from it, and the results are stored back at Z-Close. Optional. \\ \hline
 \end{longtable}
 }
 
@@ -356,10 +357,10 @@ The run of a session: the transitions and the data the rules produced.
 \texttt{trace} & \pref{List}$<$\mref{Transition}$>$ & Transitions in order. \\ \hline
 \texttt{results} & \pref{Map}$<$\pref{Name}, \pref{JsonValue}$>$ & $\xi$: stored step results. \\ \hline
 \texttt{bindings} & \pref{Map}$<$\pref{Name}, \pref{JsonValue}$>$ & $\beta$: orchestration result per bound step. \\ \hline
-\texttt{executorAssignment} & \pref{Map}$<$\pref{Name}, \pref{SystemName}$>$ & $\varepsilon$: executor per step. \\ \hline
+\texttt{executor\allowbreak{}Assignment} & \pref{Map}$<$\pref{Name}, \pref{SystemName}$>$ & $\varepsilon$: executor per step. \\ \hline
 \texttt{runner} & \pref{Map}$<$\pref{Name}, \pref{SystemName}$>$ & The system that ran each step. \\ \hline
-\texttt{modelTransitions} & \pref{Integer} & Transitions of the proven rule set. \\ \hline
-\texttt{transitionBound} & \pref{Integer} & Theorem~1 bound. \\ \hline
+\texttt{model\allowbreak{}Transitions} & \pref{Integer} & Transitions of the proven rule set. \\ \hline
+\texttt{transition\allowbreak{}Bound} & \pref{Integer} & Theorem~1 bound. \\ \hline
 \texttt{withinModel} & \pref{Boolean} & True when no extension was used, so Theorems~1--2 apply. \\ \hline
 \end{longtable}
 }
@@ -422,6 +423,7 @@ this service.
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: service description of workflowInstance, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Extension names; rule x-retry. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

@@ -57,7 +57,7 @@
 \ArrowheadType{Service Description}
 \ArrowheadTypeShort{SD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-23}
+\ArrowheadDate{2026-11-24}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -84,7 +84,7 @@
 
   % Front Page Abstract
   \begin{abstract}
-    This document describes the \texttt{workflowProduct} service of the Eclipse Arrowhead workflow support systems, which lets a WorkflowManager retrieve a product's recipe fragment and store the results back. It is provided by an Intelligent Product (consumed by the WorkflowManager), service version 1.0.0, documentation edition 5.4.0.
+    This document describes the \texttt{workflow\allowbreak{}Product} service of the Eclipse Arrowhead workflow support systems, which lets a WorkflowManager retrieve a product's recipe fragment and store the results back. It is provided by an Intelligent Product (consumed by the WorkflowManager), service version 1.0.0, documentation edition 5.4.0.
   \end{abstract}
 
   \vspace*{1cm}
@@ -100,11 +100,11 @@
 
 \section{Overview}
 \label{sec:overview}
-The \texttt{workflowProduct} service is \emph{consumed} by the WorkflowManager and \emph{provided}
+The \texttt{workflow\allowbreak{}Product} service is \emph{consumed} by the WorkflowManager and \emph{provided}
 by an Intelligent Product, its digital twin, or an adapter to the factory control system. It realises the principle
 that data belongs at its source~\cite{derhamy2018}: the recipe and the as-built record belong to the product, the
 WorkflowManager only works on a copy. This document specifies the contract a product must implement to be used with
-\texttt{workflowInstance.start} and its \texttt{product} field.
+\texttt{workflow\allowbreak{}Instance.\allowbreak{}start} and its \texttt{product} field.
 
 The rest of this document is organized as follows.
 In Section~\ref{sec:operations}, we describe the abstract message operations provided by the service.
@@ -123,7 +123,7 @@ results; failures to store are logged in the worklog and do not change the sessi
 \subsection{Important Delimitations and Dependencies}
 \label{sec:delimitations}
 \begin{itemize}
-\item Only the consumer side is implemented (\texttt{ProductGateway}); no product system exists in this workspace yet. The contract is a proposal (open decision 4 of the architecture, link to AAS/IEC~63278).
+\item Only the consumer side is implemented (\texttt{Product\allowbreak{}Gateway}); no product system exists in this workspace yet. The contract is a proposal (open decision 4 of the architecture, link to AAS/IEC~63278).
 \item The product's acceptance or rejection of the result (\texttt{REJECTED}) is not yet acted upon.
 \item Failed sessions are not stored back.
 \end{itemize}
@@ -133,7 +133,7 @@ results; failures to store are logged in the worklog and do not change the sessi
 \newpage
 \section{Service Interface}
 \label{sec:operations}
-This section describes the interface of the \texttt{workflowProduct} service. Each subsection names an abstract operation,
+This section describes the interface of the \texttt{workflow\allowbreak{}Product} service. Each subsection names an abstract operation,
 an input type and an output type, in that order. The input type is named inside parentheses, while the output type is
 preceded by a colon. Input and output types are only denoted when accepted or returned, respectively, by the operation
 in question. All abstract data types named in this section are defined in Section~\ref{sec:model}. The concrete
@@ -175,7 +175,7 @@ Stores the results of a completed session at the product.
 \newpage
 \section{Information Model}
 \label{sec:model}
-Here, all data objects that can be part of the \texttt{workflowProduct} service are listed in alphabetic order. Each
+Here, all data objects that can be part of the \texttt{workflow\allowbreak{}Product} service are listed in alphabetic order. Each
 subsection, which describes one type of object, begins with the \textit{struct} keyword (a collection of named fields,
 each with its own data type), the \textit{enum} keyword (a closed set of values) or the \textit{alias} keyword. As a
 complement to the explicitly defined types in this section, there is also a list of implicit primitive types in
@@ -207,8 +207,8 @@ How a step reaches an executor.
 \hline
 \rowcolor{gray!33} Value & Meaning \\ \hline
 \endhead
-\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflowExecution.start} (default). \\ \hline
-\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflowWorkItem.claim}. \\ \hline
+\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflow\allowbreak{}Execution.\allowbreak{}start} (default). \\ \hline
+\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflow\allowbreak{}Work\allowbreak{}Item.\allowbreak{}claim}. \\ \hline
 \texttt{event} & Reserved for EventHandler notification; currently handled as \texttt{pull}. \\ \hline
 \end{longtable}
 }
@@ -222,7 +222,7 @@ $\eta(s)$: constraints on the executor that runs a step.
 \hline
 \rowcolor{gray!33} Field & Type & Description \\ \hline
 \endhead
-\texttt{capability} & \pref{String} & A capability the executor must declare in \texttt{workflowCapabilities}. Optional. \\ \hline
+\texttt{capability} & \pref{String} & A capability the executor must declare in \texttt{workflow\allowbreak{}Capabilities}. Optional. \\ \hline
 \texttt{workstation} & \pref{String} & The executor's workstation. Optional. \\ \hline
 \texttt{system} & \pref{SystemName} & A named executor system. Optional. \\ \hline
 \end{longtable}
@@ -267,7 +267,7 @@ Reaction to an \texttt{ERROR} report.
 \rowcolor{gray!33} Value & Meaning \\ \hline
 \endhead
 \texttt{rebind} & Exclude the executor for this session and bind the step again. \\ \hline
-\texttt{retry} & Keep the executor: after \texttt{backoffSeconds} dispatch the step to the same executor again (extension x-retry; for transient provider-side failures, the provider must accept a repeated call). \\ \hline
+\texttt{retry} & Keep the executor: after \texttt{backoff\allowbreak{}Seconds} dispatch the step to the same executor again, or to the least-loaded candidate when that executor is no longer available (extension x-retry; for transient provider-side failures, the provider must accept a repeated call). \\ \hline
 \texttt{abort} & Fail the session. \\ \hline
 \end{longtable}
 }
@@ -283,12 +283,12 @@ A declared session parameter.
 \endhead
 \texttt{name} & \pref{Name} & Parameter name, referenced as \texttt{\$\{param.name\}}. \\ \hline
 \texttt{type} & \pref{String} & Informative type: \texttt{string}, \texttt{number}, \texttt{boolean} or \texttt{object}. Optional. \\ \hline
-\texttt{required} & \pref{Boolean} & Whether \texttt{workflowInstance.start} refuses a session without it. Optional. \\ \hline
+\texttt{required} & \pref{Boolean} & Whether \texttt{workflow\allowbreak{}Instance.\allowbreak{}start} refuses a session without it. Optional. \\ \hline
 \end{longtable}
 }
 
 \msubsection{struct}{Policy}
-Execution policy of a step. Every field other than \texttt{lease} and \texttt{localCloudOnly} is an extension outside the proven model.
+Execution policy of a step. Every field other than \texttt{lease} and \texttt{local\allowbreak{}Cloud\allowbreak{}Only} is an extension outside the proven model.
 
 {\small
 \begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
@@ -297,11 +297,11 @@ Execution policy of a step. Every field other than \texttt{lease} and \texttt{lo
 \rowcolor{gray!33} Field & Type & Description \\ \hline
 \endhead
 \texttt{quantity} & \pref{Integer} & Number of executions; only 1 is accepted (check M01). Optional. \\ \hline
-\texttt{timeoutSeconds} & \pref{Duration} & Extension x-timeout: the step fails when it runs longer. Optional. \\ \hline
-\texttt{nominalDurationSeconds} & \pref{Duration} & Expected duration, used to check lease durations (check L04). Optional. \\ \hline
-\texttt{retry} & \mref{Retry} & Extension x-rebind: behaviour on \texttt{ERROR}. Optional. \\ \hline
+\texttt{timeout\allowbreak{}Seconds} & \pref{Duration} & Extension x-timeout: the step fails when it runs longer. Optional. \\ \hline
+\texttt{nominal\allowbreak{}Duration\allowbreak{}Seconds} & \pref{Duration} & Expected duration, used to check lease durations (check L04). Optional. \\ \hline
+\texttt{retry} & \mref{Retry} & Extensions x-rebind and x-retry: behaviour on \texttt{ERROR}. Optional. \\ \hline
 \texttt{lease} & \mref{LeasePolicy} & The step's role for a shared resource. Optional. \\ \hline
-\texttt{localCloudOnly} & \pref{Boolean} & Whether orchestration may return providers of other clouds (default true). Optional. \\ \hline
+\texttt{local\allowbreak{}Cloud\allowbreak{}Only} & \pref{Boolean} & Whether orchestration may return providers of other clouds (default true). Optional. \\ \hline
 \end{longtable}
 }
 
@@ -329,7 +329,7 @@ Asks the product for its recipe fragment for one workstation.
 \hline
 \rowcolor{gray!33} Field & Type & Description \\ \hline
 \endhead
-\texttt{workstationId} & \pref{String} & The \texttt{workflow.workstation.id} of the requesting WorkflowManager (empty when not configured). \\ \hline
+\texttt{workstationId} & \pref{String} & The \texttt{workflow.\allowbreak{}workstation.\allowbreak{}id} of the requesting WorkflowManager (empty when not configured). \\ \hline
 \end{longtable}
 }
 
@@ -380,7 +380,7 @@ A shared resource that steps reserve, use and release under a lease (Proposition
 \rowcolor{gray!33} Field & Type & Description \\ \hline
 \endhead
 \texttt{name} & \pref{Name} & Resource name. \\ \hline
-\texttt{leaseDurationSeconds} & \pref{Duration} & Lease duration granted by \texttt{workflowLease}; must exceed the longest tool-using step. Optional. \\ \hline
+\texttt{lease\allowbreak{}Duration\allowbreak{}Seconds} & \pref{Duration} & Lease duration granted by \texttt{workflowLease}; must exceed the longest tool-using step. Optional. \\ \hline
 \texttt{provider} & \pref{SystemName} & Lease provider; the WorkflowManager when absent. Optional. \\ \hline
 \end{longtable}
 }
@@ -394,9 +394,9 @@ Extensions x-rebind and x-retry.
 \hline
 \rowcolor{gray!33} Field & Type & Description \\ \hline
 \endhead
-\texttt{maxAttempts} & \pref{Integer} & Maximum attempts of the step in one session. Optional. \\ \hline
-\texttt{onError} & \mref{OnError} & What an \texttt{ERROR} report causes. Optional. \\ \hline
-\texttt{backoffSeconds} & \pref{Duration} & Pause before a same-executor retry (\texttt{onError} = \texttt{retry}); 0--600, default 1. Optional. \\ \hline
+\texttt{maxAttempts} & \pref{Integer} & Maximum attempts of the step in one session, counting every work item of the step; at least 1, default 1 (no further attempt). Optional. \\ \hline
+\texttt{onError} & \mref{OnError} & What an \texttt{ERROR} report causes while attempts remain. State it explicitly: the recipe schema names \texttt{rebind} as default, but the Java WorkflowManager fails the session when it is absent. Optional. \\ \hline
+\texttt{backoff\allowbreak{}Seconds} & \pref{Duration} & Pause before a same-executor retry (\texttt{onError} = \texttt{retry}); 0--600, default 1. Optional. \\ \hline
 \end{longtable}
 }
 
@@ -409,13 +409,13 @@ Requirements on the provider of the step's service, passed to orchestration.
 \hline
 \rowcolor{gray!33} Field & Type & Description \\ \hline
 \endhead
-\texttt{serviceDefinition} & \pref{ServiceDefinition} & The service to consume. \\ \hline
-\texttt{interfaces} & \pref{List}$<$\pref{String}$>$ & Accepted interface template names, e.g. \texttt{generic\_https}. Optional. \\ \hline
+\texttt{service\allowbreak{}Definition} & \pref{ServiceDefinition} & The service to consume. \\ \hline
+\texttt{interfaces} & \pref{List}$<$\pref{String}$>$ & Accepted interface template names, e.g. \texttt{generic\_\allowbreak{}https}. Optional. \\ \hline
 \texttt{minVersion} & \pref{String} & Lowest accepted service version. Optional. \\ \hline
 \texttt{maxVersion} & \pref{String} & Highest accepted service version. Optional. \\ \hline
 \texttt{metadata} & \pref{Map}$<$\pref{String}, \pref{JsonValue}$>$ & Metadata requirements on the service instance. Optional. \\ \hline
 \texttt{qos} & \pref{Map}$<$\pref{String}, \pref{JsonValue}$>$ & QoS requirements forwarded to orchestration. Optional. \\ \hline
-\texttt{requiresResults} & \pref{List}$<$\pref{Name}$>$ & Steps whose results the provider needs; each must be in $dep(s)$ (check D04). Optional. \\ \hline
+\texttt{requires\allowbreak{}Results} & \pref{List}$<$\pref{Name}$>$ & Steps whose results the provider needs; each must be in $dep(s)$ (check D04). Optional. \\ \hline
 \end{longtable}
 }
 
@@ -477,7 +477,7 @@ this service.
 \pdef{List} & An ordered collection of items of the type given in angle brackets. \\ \hline
 \pdef{Map} & A collection of key/value pairs of the types given in angle brackets. \\ \hline
 \pdef{Name} & An identifier of a recipe, action, step, parameter or resource: a letter followed by at most 62 letters, digits, \texttt{-} or \texttt{\_}. \\ \hline
-\pdef{ServiceDefinition} & The name of an Arrowhead service definition. Names are compared case-insensitively and without \texttt{-}, \texttt{\_} and spaces, so \texttt{temperature-read} and \texttt{temperatureRead} denote the same service. \\ \hline
+\pdef{ServiceDefinition} & The name of an Arrowhead service definition. Names are compared case-insensitively and without \texttt{-}, \texttt{\_} and spaces, so \texttt{temperature-\allowbreak{}read} and \texttt{temperature\allowbreak{}Read} denote the same service. \\ \hline
 \pdef{SessionId} & The identifier the WorkflowManager gives a session. \\ \hline
 \pdef{String} & A chain of characters. \\ \hline
 \pdef{SystemName} & The name of an Arrowhead system as it appears in its certificate and in the ServiceRegistry. \\ \hline
@@ -499,6 +499,7 @@ this service.
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: service description of workflowProduct, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Retry policy as implemented. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

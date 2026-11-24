@@ -43,7 +43,7 @@
 \ArrowheadType{System Description}
 \ArrowheadTypeShort{SysD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-23}
+\ArrowheadDate{2026-11-24}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -149,9 +149,9 @@ $compile \rightarrow O \rightarrow consume$ with the step's consumer as requeste
 \label{sec:use}
 One or more executors are deployed per workstation. Each declares its capabilities (e.g. \texttt{heating},
 \texttt{nutrunner}), the services it can run (\texttt{*} for any) and its workstation; these are registered as
-metadata of \texttt{workflowExecution}. In push mode the WorkflowManager selects the executor; in pull mode the
-executor polls \texttt{workflowWorkItem.claim}. With \texttt{workflow.choreographer.enabled} the executor also
-registers with the Choreographer (\texttt{choreographerExecutor.register}) and runs Choreographer plan steps.
+metadata of \texttt{workflow\allowbreak{}Execution}. In push mode the WorkflowManager selects the executor; in pull mode the
+executor polls \texttt{workflow\allowbreak{}Work\allowbreak{}Item.\allowbreak{}claim}. With \texttt{workflow.\allowbreak{}choreographer.\allowbreak{}enabled} the executor also
+registers with the Choreographer (\texttt{choreographer\allowbreak{}Executor.\allowbreak{}register}) and runs Choreographer plan steps.
 
 \subsection{System functionalities and properties}
 \label{sec:properties}
@@ -160,10 +160,10 @@ registers with the Choreographer (\texttt{choreographerExecutor.register}) and r
 \item Run a work item: lease reserve/poll or renew, orchestration (pull, matchmaking, inter-cloud only when the step
 allows it) at the configured orchestrator, input composition $\kappa_s(\rho, \xi|dep(s))$, invocation, lease release,
 report (BOUND, BIND\_FAILED, SUCCESS, ERROR, FATAL\_ERROR, ABORTED).
-\item Equipment adapter SPI with the generic HTTP/HTTPS JSON adapter (\texttt{generic\_http}, \texttt{generic\_https}).
+\item Equipment adapter SPI with the generic HTTP/HTTPS JSON adapter (\texttt{generic\_http}, \texttt{generic\_\allowbreak{}https}).
 \item Pull loop with configurable polling interval; push endpoint; abort and status of running work items.
 \item Choreographer executor compatibility: \texttt{service-info}, \texttt{start}, \texttt{abort}, reporting with
-\texttt{notify-step-done}; registration and unregistration with the Choreographer.
+\texttt{notify-\allowbreak{}step-\allowbreak{}done}; registration and unregistration with the Choreographer.
 \end{itemize}
 
 \subsubsection{Configuration of system properties}
@@ -173,27 +173,28 @@ common Arrowhead~5 profile.
 
 \subsubsection{Data stored by the system}
 No workflow data is persisted. Work items in progress are kept in memory; the common-library log table is kept in an
-embedded H2 database.
+embedded H2 database, in memory in the secure deployment and in \texttt{./data} with the packaged defaults.
 
 \subsubsection{Non functional properties}
 \begin{itemize}
 \item \emph{Security:} see Section~\ref{sec:security}. Providers see the executor's own certificate and identity.
 \item \emph{Latency:} one orchestration and one invocation per step, plus two calls to the WorkflowManager (context and
-report); work items run on a thread pool (\texttt{workflow.executor.threads}, default 8).
+report); work items run on a thread pool (\texttt{workflow.\allowbreak{}executor.\allowbreak{}threads}, default 8).
 \item \emph{Energy and power saving:} in pull mode the executor polls (default every 500\,ms); push mode is idle
 between work items.
 \end{itemize}
 
 \subsubsection{Stateful or stateless}
 Stateless with respect to workflows: the authoritative state is in the WorkflowManager. After a restart
-unknown work items are reported as \texttt{UNKNOWN} by \texttt{get-status}, and the WorkflowManager's timeouts apply.
+unknown work items are reported as \texttt{UNKNOWN} by \texttt{get-status}; the WorkflowManager fails the step when its
+\texttt{timeout\allowbreak{}Seconds} is exceeded.
 
 \subsection{Important Delimitations}
 \label{sec:delimitations}
 \begin{itemize}
 \item Only HTTP/HTTPS JSON equipment; MQTT, CoAP and OPC UA adapters are not implemented (the SPI exists).
 \item TOKEN\_AUTH provider interfaces (orchestration tokens) are not used.
-\item Never consumes services outside its local cloud unless the step's policy sets \texttt{localCloudOnly = false}.
+\item Never consumes services outside its local cloud unless the step's policy sets \texttt{local\allowbreak{}Cloud\allowbreak{}Only = false}.
 \item Does not store recipes or results; does not talk to products.
 \end{itemize}
 
@@ -211,8 +212,8 @@ IDD in this documentation set.
 \hline
 \rowcolor{gray!33} Service & Operations & Documents \\ \hline
 \endhead
-\texttt{workflowExecution} & service-info, start, abort, get-status & \texttt{WorkflowExecutor-v5.4.0-workflowExecution-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{generalManagement} & get-log, get-config & \texttt{Workflow-v5.4.0-generalManagement-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflow\allowbreak{}Execution} & service-info, start, abort, get-status & \texttt{Workflow\allowbreak{}Executor-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Execution-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{general\allowbreak{}Management} & get-log, get-config & \texttt{Workflow-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}general\allowbreak{}Management-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
 \texttt{Choreographer executor interface} & service-info, start, abort (not registered; under \textbackslash{}texttt\{/workflowexecutor/choreographer\}) & Choreographer executor IDD (Choreographer 5.x) \\ \hline
 \end{longtable}
 }
@@ -220,9 +221,9 @@ IDD in this documentation set.
 
 \subsection{Consumed services}
 All three workflow systems use the core systems the same way: at start-up they log in at the Authentication
-system (\texttt{identity}) and register their services in the ServiceRegistry (\texttt{serviceDiscovery.register});
-on every incoming request they verify the caller's identity token (\texttt{identity.identity-verify}) and, with
-\texttt{service.authorization.enabled}, the caller's grant (\texttt{authorization.verify} of ConsumerAuthorization);
+system (\texttt{identity}) and register their services in the ServiceRegistry (\texttt{service\allowbreak{}Discovery.\allowbreak{}register});
+on every incoming request they verify the caller's identity token (\texttt{identity.\allowbreak{}identity-\allowbreak{}verify}) and, with
+\texttt{service.\allowbreak{}authorization.\allowbreak{}enabled}, the caller's grant (\texttt{authorization.\allowbreak{}verify} of ConsumerAuthorization);
 at shutdown they revoke their services and log out.
 
 {\small
@@ -231,15 +232,15 @@ at shutdown they revoke their services and log out.
 \hline
 \rowcolor{gray!33} Service & Provider & Operations & Purpose \\ \hline
 \endhead
-\texttt{serviceDiscovery} & ServiceRegistry & register, revoke & Registration of \texttt{workflowExecution} with capability metadata. \\ \hline
+\texttt{service\allowbreak{}Discovery} & ServiceRegistry & register, revoke & Registration of \texttt{workflow\allowbreak{}Execution} with capability metadata. \\ \hline
 \texttt{identity} & Authentication & login, logout, identity-verify & Own identity token; verification of callers. \\ \hline
 \texttt{authorization} & ConsumerAuthorization & verify & Provider-side authorization. \\ \hline
-\texttt{serviceOrchestration} & DynamicServiceOrchestration & pull & Provider of each step, with the executor as requester. \\ \hline
-\texttt{workflowWorkItem} & WorkflowManager & claim, report & Pull and reports. \\ \hline
-\texttt{workflowContext} & WorkflowManager & get-parameters, get-results, put-result & $\rho$, $\xi|dep(s)$, $\xi(s)$. \\ \hline
+\texttt{service\allowbreak{}Orchestration} & Dynamic\allowbreak{}Service\allowbreak{}Orchestration & pull & Provider of each step, with the executor as requester. \\ \hline
+\texttt{workflow\allowbreak{}Work\allowbreak{}Item} & WorkflowManager & claim, report & Pull and reports. \\ \hline
+\texttt{workflow\allowbreak{}Context} & WorkflowManager & get-parameters, get-results, put-result & $\rho$, $\xi|dep(s)$, $\xi(s)$. \\ \hline
 \texttt{workflowLease} & WorkflowManager & reserve, poll, renew, release & Shared resources. \\ \hline
 (step services) & Equipment / application systems & as orchestrated & The work itself. \\ \hline
-\texttt{choreographerExecutor} & Choreographer & register, unregister, notify-step-done & Only with \texttt{workflow.choreographer.enabled}. \\ \hline
+\texttt{choreographer\allowbreak{}Executor} & Choreographer & register, unregister, notify-step-done & Only with \texttt{workflow.\allowbreak{}choreographer.\allowbreak{}enabled}. \\ \hline
 \end{longtable}
 }
 
@@ -253,24 +254,25 @@ TLS handshake.
 
 \subsection{Security model}
 \begin{itemize}
-\item \textbf{Secure mode only in deployment.} The deployment configuration (\texttt{deployment/*.properties}) enables
-TLS with client authentication (\texttt{server.ssl.client-auth=need}, TLS 1.3 and 1.2), outsourced authentication with
+\item \textbf{Secure mode only in deployment.} The deployment configuration (\texttt{deployment/\allowbreak{}*.\allowbreak{}properties}) enables
+TLS with client authentication (\texttt{server.\allowbreak{}ssl.\allowbreak{}client-\allowbreak{}auth=\allowbreak{}need}, TLS 1.3 and 1.2), outsourced authentication with
 identity tokens bound to the client certificate, interface policy \texttt{CERT\_AUTH} and the CRL check. The packaged
-defaults without TLS exist for development and unit tests (\texttt{workflow.standalone}) and must not be used in a
+defaults without TLS exist for development and unit tests (\texttt{workflow.\allowbreak{}standalone}) and must not be used in a
 cloud.
 \item \textbf{Certificates.} The system has an Arrowhead system certificate
-\texttt{<System>.<cloud>.<organisation>.arrowhead.eu} issued by the local cloud CA, kept in a PKCS\#12 key store; the
+\texttt{<System>.\allowbreak{}<cloud>.\allowbreak{}<organisation>.\allowbreak{}arrowhead.\allowbreak{}eu} issued by the local cloud CA, kept in a PKCS\#12 key store; the
 trust store holds the cloud CA. Non-Arrowhead certificates are refused at the TLS layer.
 \item \textbf{Provider-side authorization.} Every operation of the registered services (other than management) is
-checked against ConsumerAuthorization (\texttt{authorization.verify}) for the calling system, the service definition
-and the operation (route tables \texttt{ServiceOperations} and \texttt{ConfiguratorOperations}). A missing grant gives
+checked against ConsumerAuthorization (\texttt{authorization.\allowbreak{}verify}) for the calling system, the service definition
+and the operation (route tables \texttt{Service\allowbreak{}Operations} and \texttt{Configurator\allowbreak{}Operations}). A missing grant gives
 403.
-\item \textbf{Management.} \texttt{generalManagement} and \texttt{workflowManagement} are protected by
-\texttt{management.policy=sysop-only}.
-\item \textbf{Data protection.} All service traffic is encrypted by TLS. The WorkflowManager's database connection uses
-TLS with server certificate verification (\texttt{sslMode=verify-full}). Secrets (store, identity and database
-passwords, the console password hash) come from container secrets (\texttt{configtree:/run/secrets/}), not from the
-image.
+\item \textbf{Management.} \texttt{general\allowbreak{}Management} and \texttt{workflow\allowbreak{}Management} are protected by
+\texttt{management.\allowbreak{}policy=\allowbreak{}sysop-\allowbreak{}only}.
+\item \textbf{Data protection.} All service traffic is encrypted by TLS. Each system is responsible for its own data:
+its database runs inside its own process, so there is no database connection, port or account that another system could
+use, and its data is reachable only through its services. Secrets (store and identity passwords, the WorkflowManager's
+database password, the console password hash) come from container secrets (\texttt{configtree:/\allowbreak{}run/\allowbreak{}secrets/}), not from
+the image.
 \end{itemize}
 
 
@@ -291,6 +293,7 @@ grant the executor, not the WorkflowManager.
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: system description of the WorkflowExecutor, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Data protection, log storage and behaviour after a restart. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

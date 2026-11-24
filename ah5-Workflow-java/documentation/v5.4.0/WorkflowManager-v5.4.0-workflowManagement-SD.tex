@@ -57,7 +57,7 @@
 \ArrowheadType{Service Description}
 \ArrowheadTypeShort{SD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-23}
+\ArrowheadDate{2026-11-24}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -84,7 +84,7 @@
 
   % Front Page Abstract
   \begin{abstract}
-    This document describes the \texttt{workflowManagement} service of the Eclipse Arrowhead workflow support systems, which gives operators the worklog, the known executors and the work items. It is provided by the WorkflowManager system, service version 1.0.0, documentation edition 5.4.0.
+    This document describes the \texttt{workflow\allowbreak{}Management} service of the Eclipse Arrowhead workflow support systems, which gives operators the worklog, the known executors and the work items. It is provided by the WorkflowManager system, service version 1.0.0, documentation edition 5.4.0.
   \end{abstract}
 
   \vspace*{1cm}
@@ -100,7 +100,7 @@
 
 \section{Overview}
 \label{sec:overview}
-The \texttt{workflowManagement} service is the operator view of a WorkflowManager: the audit worklog
+The \texttt{workflow\allowbreak{}Management} service is the operator view of a WorkflowManager: the audit worklog
 of sessions and steps, the executors the WorkflowManager can dispatch to (with their declared capabilities), and the
 work items with their states.
 
@@ -119,8 +119,8 @@ what.
 \subsection{Important Delimitations and Dependencies}
 \label{sec:delimitations}
 \begin{itemize}
-\item Read-only; recipes are managed through \texttt{workflowRecipe}, sessions through \texttt{workflowInstance}.
-\item Protected by the management policy of the system (\texttt{management.policy=sysop-only} in the secure deployment), not by ConsumerAuthorization.
+\item Read-only; recipes are managed through \texttt{workflow\allowbreak{}Recipe}, sessions through \texttt{workflow\allowbreak{}Instance}.
+\item Protected by the management policy of the system (\texttt{management.\allowbreak{}policy=\allowbreak{}sysop-\allowbreak{}only} in the secure deployment), not by ConsumerAuthorization.
 \end{itemize}
 
 \paragraph{Authorization.} Sysop only (management policy); a ConsumerAuthorization grant is not sufficient.
@@ -128,7 +128,7 @@ what.
 \newpage
 \section{Service Interface}
 \label{sec:operations}
-This section describes the interface of the \texttt{workflowManagement} service. Each subsection names an abstract operation,
+This section describes the interface of the \texttt{workflow\allowbreak{}Management} service. Each subsection names an abstract operation,
 an input type and an output type, in that order. The input type is named inside parentheses, while the output type is
 preceded by a colon. Input and output types are only denoted when accepted or returned, respectively, by the operation
 in question. All abstract data types named in this section are defined in Section~\ref{sec:model}. The concrete
@@ -168,14 +168,14 @@ The following interface operations are available.
 \osubsection{query-worklog}{WorklogFilter}{WorklogList}
 Returns worklog entries, optionally of one session.
 \osubsection{query-executors}{}{ExecutorList}
-Returns the executor set $WE$ with $cap(w)$: the providers of \texttt{workflowExecution} in the ServiceRegistry plus statically configured executors.
+Returns the executor set $WE$ with $cap(w)$: the providers of \texttt{workflow\allowbreak{}Execution} in the ServiceRegistry plus statically configured executors.
 \osubsection{query-work-items}{WorklogFilter}{WorkItemList}
 Returns work items, optionally of one session.
 
 \newpage
 \section{Information Model}
 \label{sec:model}
-Here, all data objects that can be part of the \texttt{workflowManagement} service are listed in alphabetic order. Each
+Here, all data objects that can be part of the \texttt{workflow\allowbreak{}Management} service are listed in alphabetic order. Each
 subsection, which describes one type of object, begins with the \textit{struct} keyword (a collection of named fields,
 each with its own data type), the \textit{enum} keyword (a closed set of values) or the \textit{alias} keyword. As a
 complement to the explicitly defined types in this section, there is also a list of implicit primitive types in
@@ -190,8 +190,8 @@ How a step reaches an executor.
 \hline
 \rowcolor{gray!33} Value & Meaning \\ \hline
 \endhead
-\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflowExecution.start} (default). \\ \hline
-\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflowWorkItem.claim}. \\ \hline
+\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflow\allowbreak{}Execution.\allowbreak{}start} (default). \\ \hline
+\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflow\allowbreak{}Work\allowbreak{}Item.\allowbreak{}claim}. \\ \hline
 \texttt{event} & Reserved for EventHandler notification; currently handled as \texttt{pull}. \\ \hline
 \end{longtable}
 }
@@ -209,7 +209,7 @@ An executor $w \in WE$ with $cap(w)$.
 \texttt{scheme} & \pref{String} & \texttt{https} or \texttt{http}. \\ \hline
 \texttt{address} & \pref{String} & Address. \\ \hline
 \texttt{port} & \pref{Integer} & Port. \\ \hline
-\texttt{basePath} & \pref{String} & Base path of \texttt{workflowExecution}. \\ \hline
+\texttt{basePath} & \pref{String} & Base path of \texttt{workflow\allowbreak{}Execution}. \\ \hline
 \texttt{capabilities} & \pref{List}$<$\pref{String}$>$ & Capabilities. \\ \hline
 \texttt{services} & \pref{List}$<$\pref{ServiceDefinition}$>$ & Runnable services. \\ \hline
 \texttt{workstation} & \pref{String} & Workstation. Optional. \\ \hline
@@ -277,13 +277,15 @@ State of a work item at the WorkflowManager.
 \hline
 \rowcolor{gray!33} Value & Meaning \\ \hline
 \endhead
-\texttt{OPEN} & Published for claiming (pull). \\ \hline
+\texttt{OPEN} & Published for claiming (pull); fails when nobody claims it within the claim timeout. \\ \hline
 \texttt{DISPATCHED} & Sent to an executor (push). \\ \hline
 \texttt{CLAIMED} & Claimed by an executor (pull). \\ \hline
 \texttt{BOUND} & The executor reported a provider. \\ \hline
 \texttt{DONE} & Completed. \\ \hline
-\texttt{FAILED} & Failed. \\ \hline
+\texttt{FAILED} & Failed; its executor is excluded from later attempts of the step in this session. \\ \hline
 \texttt{ABORTED} & Aborted. \\ \hline
+\texttt{RETRY\_WAIT} & Ended with \texttt{ERROR} under \texttt{onError} = \texttt{retry} and waits for its backoff; survives a restart of the WorkflowManager. \\ \hline
+\texttt{RETRIED} & Its backoff is over and the step was dispatched again; unlike \texttt{FAILED} it does not exclude the executor. \\ \hline
 \end{longtable}
 }
 
@@ -350,7 +352,7 @@ this service.
 \pdef{Integer} & A whole number. \\ \hline
 \pdef{List} & An ordered collection of items of the type given in angle brackets. \\ \hline
 \pdef{Name} & An identifier of a recipe, action, step, parameter or resource: a letter followed by at most 62 letters, digits, \texttt{-} or \texttt{\_}. \\ \hline
-\pdef{ServiceDefinition} & The name of an Arrowhead service definition. Names are compared case-insensitively and without \texttt{-}, \texttt{\_} and spaces, so \texttt{temperature-read} and \texttt{temperatureRead} denote the same service. \\ \hline
+\pdef{ServiceDefinition} & The name of an Arrowhead service definition. Names are compared case-insensitively and without \texttt{-}, \texttt{\_} and spaces, so \texttt{temperature-\allowbreak{}read} and \texttt{temperature\allowbreak{}Read} denote the same service. \\ \hline
 \pdef{SessionId} & The identifier the WorkflowManager gives a session. \\ \hline
 \pdef{String} & A chain of characters. \\ \hline
 \pdef{SystemName} & The name of an Arrowhead system as it appears in its certificate and in the ServiceRegistry. \\ \hline
@@ -371,6 +373,7 @@ this service.
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: service description of workflowManagement, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Work item states of the retry extension. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

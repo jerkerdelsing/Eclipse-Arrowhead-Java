@@ -29,10 +29,11 @@ and the operation (route tables \texttt{ServiceOperations} and \texttt{Configura
 403.
 \item \textbf{Management.} \texttt{generalManagement} and \texttt{workflowManagement} are protected by
 \texttt{management.policy=sysop-only}.
-\item \textbf{Data protection.} All service traffic is encrypted by TLS. The WorkflowManager's database connection uses
-TLS with server certificate verification (\texttt{sslMode=verify-full}). Secrets (store, identity and database
-passwords, the console password hash) come from container secrets (\texttt{configtree:/run/secrets/}), not from the
-image.
+\item \textbf{Data protection.} All service traffic is encrypted by TLS. Each system is responsible for its own data:
+its database runs inside its own process, so there is no database connection, port or account that another system could
+use, and its data is reachable only through its services. Secrets (store and identity passwords, the WorkflowManager's
+database password, the console password hash) come from container secrets (\texttt{configtree:/run/secrets/}), not from
+the image.
 \end{itemize}
 """
 
@@ -68,18 +69,20 @@ trace at any time.
 name and version, retirement, compilation to Choreographer plans.
 \item Session engine: the session state $z = (M, M_A, \beta, \varepsilon, \xi, status)$ and the eight transition rules
 A-Start, S-Enable, S-Bind, S-Done, A-Finish, Z-Close, S-FailBind and S-FailInvoke, with the Theorem~1 transition count.
-\item Extensions, flagged per session: x-rebind (retry on ERROR or an unreachable executor), x-abort, x-timeout,
-compensation (lease release on failure), x-guard/x-skip (guarded transitions with dead-path elimination).
+\item Extensions, flagged per session: x-rebind (another executor after ERROR), x-retry (the same executor again after a
+backoff), x-abort, x-timeout, compensation (lease release on failure), x-guard/x-skip (guarded transitions with dead-path elimination).
 \item Dispatch: push (executor selection by $\eta(s)$ and $\theta(s)$, least loaded, next executor after BIND\_FAILED),
-pull (atomic claim, holder-only reports, claim timeout); \texttt{event} is accepted and handled as pull.
+pull (atomic claim, holder-only reports, timeout of unclaimed work items); \texttt{event} is accepted and handled as pull.
 \item Session context ($\rho$, $\xi|dep(s)$) for executors; FIFO leases with renewal and expiry for shared resources.
 \item Product integration (retrieve recipe at start, store results at Z-Close) and an audit worklog.
 \end{itemize}""",
-    data=r"""The WorkflowManager owns the database schema \texttt{ah\_workflow}: \texttt{recipe} (immutable canonical JSON per
+    data=r"""The WorkflowManager owns the database \texttt{ah\_workflow}, embedded in its own process (H2) and stored in a
+private volume (\texttt{/data}) that no other system mounts: \texttt{recipe} (immutable canonical JSON per
 version and its status), \texttt{workflow\_session} (the JSON snapshot of $z$ with its trace and an optimistic
 \texttt{revision}), \texttt{work\_item} (one row per step attempt), \texttt{lease}, \texttt{worklog} and \texttt{logs}.
 Storing $z$ as one snapshot keeps the stored state identical to the model object and lets sessions resume after a
-restart.""",
+restart. Other systems reach this data only through the produced services. A text value (recipe document, session
+snapshot) may hold at most 1\,048\,576 characters.""",
     nonfunctional=r"""\begin{itemize}
 \item \emph{Security:} see Section~\ref{sec:security}.
 \item \emph{Safety and liveness:} for well-formed recipes without extensions every run takes at most $3|S| + 2|A|$
@@ -98,6 +101,9 @@ WorkflowManager restart resumes running sessions. Executors keep no durable stat
 \item One local cloud: delegating actions to WorkflowManagers in other clouds through Gatekeeper/GateTunnel and the
 disconnected working copy are designed but not implemented.
 \item EventHandler notifications (\texttt{event} dispatch and workflow events) are not implemented.
+\item \texttt{onError} of a retry policy must be stated: the recipe schema names \texttt{rebind} as default, but the engine
+fails the session when it is absent.
+\item A step without \texttt{timeoutSeconds} has no limit once an executor holds its work item.
 \item Recovery beyond the listed extensions (compensation of arbitrary steps, \texttt{quantity} $>$ 1) is not provided;
 the theorems do not cover sessions that use extensions.
 \item The \texttt{workflowProduct} side is implemented as a consumer only; no product system exists yet.
@@ -120,7 +126,7 @@ the theorems do not cover sessions that use extensions.
             ("workflow.dispatch.default", "push", r"Dispatch mode when neither the session nor the recipe gives one."),
             ("workflow.executors", "(empty)", r"Statically configured executors (development, or executors outside the ServiceRegistry)."),
             ("workflow.executor.discovery.cache-seconds", "10", "How long discovered executors are cached."),
-            ("workflow.pull.claim-timeout", "300", "Seconds a claimed work item may stay unreported."),
+            ("workflow.pull.claim-timeout", "300", "Seconds a published (pull) work item may wait for a claim before S-FailBind."),
             ("workflow.worker.threads", "8", "Dispatch worker threads."),
             ("workflow.lease.default-duration", "120", "Default lease duration in seconds."),
             ("workflow.lease.release-on-failure", "false", "Compensation: release a failed session's leases."),
@@ -129,15 +135,17 @@ the theorems do not cover sessions that use extensions.
             ("workflow.standalone", "false", "Development mode without core systems."),
             ("service.authorization.enabled", "false (deployment: true)", "Provider-side ConsumerAuthorization check."),
             ("management.policy", "(deployment: sysop-only)", "Protection of the management services."),
-            ("sysmonitor.enabled", "false", "Publish sysMonitor telemetry over AMQP.")],
+            ("DATABASE_DIRECTORY", "./data (deployment: /data)", "Directory of the embedded database; a volume of this system only."),
+            ("spring.datasource.password", "(secret ah.db-password)", r"Opens the database file. Set before the first start and kept: a changed value locks the system out of its data."),
+            ("sysmonitor.enabled", "true (deployment: false)", r"Publish sysMonitor telemetry over AMQP; the deployment enables it with \texttt{SYSMONITOR\_ENABLED}.")],
     components=[("WorkflowManagerSystemInfo", "Registration: system model, the seven services and their HTTP operations."),
                 ("api.http.RecipeAPI, InstanceAPI, WorkItemAPI, ContextAPI, LeaseAPI, WorkflowManagementAPI, GeneralManagementAPI", "HTTP controllers of the services; DTOs in \\texttt{api.dto}; errors mapped by \\texttt{WorkflowExceptionAdvice} (409) and the common handler."),
-                ("engine.WorkflowEngine", "Drives sessions: load the snapshot, apply rules (\\texttt{WorkflowSession} of \\texttt{workflow-model}), dispatch, handle claims and reports, watchdog for claim and step timeouts, resume after restart. One lock per session."),
+                ("engine.WorkflowEngine", "Drives sessions: load the snapshot, apply rules (\\texttt{WorkflowSession} of \\texttt{workflow-model}), dispatch, handle claims and reports, watchdog for claim timeouts, step timeouts and retry backoffs, resume after restart. One lock per session."),
                 ("service.RecipeService, CatalogueCheck", "Catalogue: parse (unknown fields rejected), validate (\\texttt{RecipeValidator} plus the \\texttt{RecipeCheck} SPI with C01/C02), store canonical JSON, retire, compile."),
                 ("service.ExecutorDirectory, HttpExecutorGateway", "Executor set $WE$ from the ServiceRegistry (\\texttt{workflowExecution} metadata) and static configuration; push calls to executors."),
                 ("service.LeaseService", "FIFO leases with tokens, renewal, expiry and session release."),
                 ("service.ProductGateway", "Consumer of \\texttt{workflowProduct}."),
-                ("service.WorklogService, jpa.*", "Worklog and persistence (Spring Data JPA, Hibernate \\texttt{validate})."),
+                ("service.WorklogService, jpa.*", "Worklog and persistence: Spring Data JPA on the embedded H2 database; the system applies \\texttt{database/schema.sql} at start and Hibernate only validates it."),
                 ("security.ServiceAuthorizationFilter, ServiceAuthorizationService", "Provider-side ConsumerAuthorization check per operation."),
                 ("workflow-model (library)", "Recipe, codec, graph, validator, session rules, guard expressions, input composer, plan compiler, wire records: pure Java and Jackson, no Spring.")],
     impl_functional=r"""A request that changes a session (start, report, abort, claim timeout) takes the session's lock, loads the
@@ -145,8 +153,13 @@ snapshot of $z$, applies one or more rules of \texttt{WorkflowSession}, saves th
 appends the transitions to the trace and worklog. Outbound calls (dispatch to executors, aborts, product calls) are
 collected while the lock is held and executed after it is released, on the worker pool. Executor selection in push mode
 filters $WE$ by $\eta(s)$ and $\theta(s)$ (service names compared case-insensitively without separators), excludes
-executors already tried in the session, and picks the least loaded. A \texttt{BIND\_FAILED} report or an unreachable
-executor moves the step to the next executor (x-rebind); when none is left S-FailBind fires. Guards are evaluated by
+executors whose work item of the step failed, and picks the least loaded. After a \texttt{BIND\_FAILED} report or an
+unreachable executor the next executor is tried; this is S-Bind with another candidate and records no extension. When
+none is left S-FailBind fires. After an \texttt{ERROR} report, while the retry policy allows another attempt, x-rebind
+excludes the executor and dispatches the step again, whereas x-retry keeps the attempt in state \texttt{RETRY\_WAIT} for
+the backoff and then dispatches to the same executor, if it is still a candidate. The backoff is ended by a delayed task
+or, after a restart, by the watchdog, which runs every second. In pull mode a retried step is published again and any
+suitable executor may claim it. Guards are evaluated by
 \texttt{GuardExpression} from $\rho$ and $\xi$ when a step completes; a step whose incoming transitions were all not
 taken is skipped (x-skip).""",
 )
@@ -179,7 +192,7 @@ report (BOUND, BIND\_FAILED, SUCCESS, ERROR, FATAL\_ERROR, ABORTED).
 \texttt{notify-step-done}; registration and unregistration with the Choreographer.
 \end{itemize}""",
     data=r"""No workflow data is persisted. Work items in progress are kept in memory; the common-library log table is kept in an
-embedded H2 database.""",
+embedded H2 database, in memory in the secure deployment and in \texttt{./data} with the packaged defaults.""",
     nonfunctional=r"""\begin{itemize}
 \item \emph{Security:} see Section~\ref{sec:security}. Providers see the executor's own certificate and identity.
 \item \emph{Latency:} one orchestration and one invocation per step, plus two calls to the WorkflowManager (context and
@@ -188,7 +201,8 @@ report); work items run on a thread pool (\texttt{workflow.executor.threads}, de
 between work items.
 \end{itemize}""",
     stateful=r"""Stateless with respect to workflows: the authoritative state is in the WorkflowManager. After a restart
-unknown work items are reported as \texttt{UNKNOWN} by \texttt{get-status}, and the WorkflowManager's timeouts apply.""",
+unknown work items are reported as \texttt{UNKNOWN} by \texttt{get-status}; the WorkflowManager fails the step when its
+\texttt{timeoutSeconds} is exceeded.""",
     delimitations=r"""\begin{itemize}
 \item Only HTTP/HTTPS JSON equipment; MQTT, CoAP and OPC UA adapters are not implemented (the SPI exists).
 \item TOKEN\_AUTH provider interfaces (orchestration tokens) are not used.
@@ -269,7 +283,9 @@ service-query, with a discovery fallback), LocalCloudConfigurator designs and So
 \texttt{generalManagement} hidden.
 \item Graphical editor (static web application): state-machine and sequence views, inspector, condition builder,
 undo, arrange with label placement, import/export, local checks with the validator's codes and per-finding help.
-\item Forwarding of validate, store, list and get to the WorkflowManager's \texttt{workflowRecipe}.
+\item Forwarding of validate, store, list and get to the WorkflowManager's \texttt{workflowRecipe}; the list asks for
+summaries, and a recipe document is read only when it is opened.
+\item Retry policy in the step inspector: attempts, reaction to ERROR (\texttt{rebind} or \texttt{retry}) and backoff.
 \end{itemize}""",
     data=r"""Nothing durable: recipes are stored only in the WorkflowManager. The log table is kept in an in-memory H2 database;
 console sessions are kept in memory.""",
@@ -537,18 +553,20 @@ VERIFICATION = {
     "WorkflowManager": r"""
 \section{Verification}
 \label{sec:verification}
-Unit tests: 25 \texttt{workflow-model} tests (rules, validator, guards, codec, compiler) and 9 WorkflowManager tests
-(Spring, H2). The smoke test (\texttt{verification/smoke}, MySQL with the shipped schema, one WorkflowManager, three
-executors, simulated plant) passes 18/18 checks, including three concurrent forklift sessions without overlapping tool
+Unit tests: 35 \texttt{workflow-model} tests (rules, validator, guards, codec, compiler) and 15 WorkflowManager tests
+(Spring, with the system's own schema on the embedded database and Hibernate validating it), passed on 2026-11-24. The
+smoke test (\texttt{verification/smoke}: one WorkflowManager with its embedded database, three executors, simulated plant)
+passed 18/18 checks on the same day, including three concurrent forklift sessions without overlapping tool
 use and lease expiry after a blocked AGV. The cloud test (\texttt{verification/cloud/run-cloud-test.sh}) against the
-Java test cloud with RESTRICTED discovery, identity tokens and ConsumerAuthorization passes 49/49 checks: registration,
+Java test cloud with RESTRICTED discovery, identity tokens and ConsumerAuthorization passed 49/49 checks on 2026-11-21,
+before the database was embedded; it has not been repeated since: registration,
 executor discovery, 401/403 cases, DSO binding with the executors' certificates, the transition counts 11, 33 and 9,
 pull mode, owner-only abort, compile, guarded recipes and sysop-only management.
 """,
     "WorkflowExecutor": r"""
 \section{Verification}
 \label{sec:verification}
-Seven unit tests with fake equipment, and the smoke and cloud tests of the WorkflowManager, in which three executors
+Seven unit tests with fake equipment (passed on 2026-11-24), and the smoke and cloud tests of the WorkflowManager, in which three executors
 run push and pull sessions and the plant sees the executors' own certificates. Choreographer compatibility was
 verified against the cloud's Choreographer 5.4.0: a compiled recipe ran as a Choreographer plan on an executor that
 registered itself, reported with \texttt{notify-step-done} and unregistered on shutdown (34/34 checks).
@@ -556,8 +574,8 @@ registered itself, reported with \texttt{notify-step-done} and unregistered on s
     "WorkflowConfigurator": r"""
 \section{Verification}
 \label{sec:verification}
-Seven Spring tests and 12 Node tests of the editor model (\texttt{node --test
-workflow-configurator/src/test/js/model.test.mjs}), among them a test that every validator code has help text. In the
+Seven Spring tests and 12 Node tests of the editor model (\texttt{node --test}
+\texttt{workflow-configurator/src/test/js/model.test.mjs}), all passed on 2026-11-24, among them a test that every validator code has help text. In the
 cloud test the configurator lists the running cloud, three LocalCloudConfigurator designs and five SoLC member clouds,
 refuses a condition reading a later step (422, G03), stores a guarded recipe (201, then 200 for identical content and
 409 for different content) and enforces ConsumerAuthorization at the Arrowhead connector. The editor was also driven in

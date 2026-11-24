@@ -120,14 +120,14 @@ and that the lease is longer than the longest tool step (validator check L04).
 The executor running a \texttt{reserve} step calls \oref{reserve}; when the answer is \texttt{QUEUED} it calls
 \oref{poll} with the ticket until \texttt{GRANTED} (the call is pending, so the step stays running). Steps in mode
 \texttt{use} call \oref{renew} with the token before the invocation. The \texttt{release} step calls \oref{release}.
-When a session fails and \texttt{workflow.lease.release-on-failure} is set, the WorkflowManager releases its leases
+When a session fails and \texttt{workflow.\allowbreak{}lease.\allowbreak{}release-\allowbreak{}on-\allowbreak{}failure} is set, the WorkflowManager releases its leases
 (compensation extension).
 
 \subsection{Important Delimitations and Dependencies}
 \label{sec:delimitations}
 \begin{itemize}
 \item Mutual exclusion is provided by this service, not by the workflow engine. Exclusive use on runs is checked in verification but not proved for the lease variant.
-\item Tokens are capabilities: whoever holds a valid token can renew and release. Tokens travel only in $\xi$ through \texttt{workflowContext}.
+\item Tokens are capabilities: whoever holds a valid token can renew and release. Tokens travel only in $\xi$ through \texttt{workflow\allowbreak{}Context}.
 \item Leases are local to one WorkflowManager. An external crib may implement the same contract.
 \end{itemize}
 
@@ -201,7 +201,7 @@ Request of the lease operations. Which fields are used depends on the operation.
 \endhead
 \texttt{resource} & \pref{Name} & \oref{reserve}: the resource. Optional. \\ \hline
 \texttt{sessionId} & \pref{SessionId} & \oref{reserve}: the session that will hold the lease (released on failure). Optional. \\ \hline
-\texttt{durationSeconds} & \pref{Duration} & \oref{reserve}: lease duration; the configured default when absent or not positive. Optional. \\ \hline
+\texttt{duration\allowbreak{}Seconds} & \pref{Duration} & \oref{reserve}: lease duration; the configured default when absent or not positive. Optional. \\ \hline
 \texttt{ticket} & \pref{String} & \oref{poll}: the ticket of a queued reservation. Optional. \\ \hline
 \texttt{token} & \pref{String} & \oref{renew} and \oref{release}: the lease token. Optional. \\ \hline
 \end{longtable}

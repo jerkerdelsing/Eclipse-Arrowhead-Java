@@ -84,7 +84,7 @@
 
   % Front Page Abstract
   \begin{abstract}
-    This document describes the \texttt{generalManagement} service of the Eclipse Arrowhead workflow support systems, which gives operators the log and selected configuration of each workflow system. It is provided by each of the three workflow systems, service version 1.0.0, documentation edition 5.4.0.
+    This document describes the \texttt{general\allowbreak{}Management} service of the Eclipse Arrowhead workflow support systems, which gives operators the log and selected configuration of each workflow system. It is provided by each of the three workflow systems, service version 1.0.0, documentation edition 5.4.0.
   \end{abstract}
 
   \vspace*{1cm}
@@ -100,7 +100,7 @@
 
 \section{Overview}
 \label{sec:overview}
-Every Arrowhead~5 system provides \texttt{generalManagement}. For the workflow systems it offers
+Every Arrowhead~5 system provides \texttt{general\allowbreak{}Management}. For the workflow systems it offers
 the system's log entries (\oref{get-log}) and selected configuration values (\oref{get-config}). The operations are
 those of the common library; this document records the base paths and the protection used by the workflow systems.
 
@@ -109,7 +109,7 @@ In Section~\ref{sec:operations}, we describe the abstract message operations pro
 In Section~\ref{sec:model}, we end the document by presenting the data types used by the mentioned operations.
 
 \subsection{Significant Prior Art}
-The \texttt{generalManagement} service of the Arrowhead~5.x common library.
+The \texttt{general\allowbreak{}Management} service of the Arrowhead~5.x common library.
 
 \subsection{How This Service Is Meant to Be Used}
 A sysop or the LocalCloudManager reads the error log of a workflow system or checks a configuration value
@@ -127,7 +127,7 @@ such as the dispatch default.
 \newpage
 \section{Service Interface}
 \label{sec:operations}
-This section describes the interface of the \texttt{generalManagement} service. Each subsection names an abstract operation,
+This section describes the interface of the \texttt{general\allowbreak{}Management} service. Each subsection names an abstract operation,
 an input type and an output type, in that order. The input type is named inside parentheses, while the output type is
 preceded by a colon. Input and output types are only denoted when accepted or returned, respectively, by the operation
 in question. All abstract data types named in this section are defined in Section~\ref{sec:model}. The concrete
@@ -171,7 +171,7 @@ Returns the values of allowed configuration keys.
 \newpage
 \section{Information Model}
 \label{sec:model}
-Here, all data objects that can be part of the \texttt{generalManagement} service are listed in alphabetic order. Each
+Here, all data objects that can be part of the \texttt{general\allowbreak{}Management} service are listed in alphabetic order. Each
 subsection, which describes one type of object, begins with the \textit{struct} keyword (a collection of named fields,
 each with its own data type), the \textit{enum} keyword (a closed set of values) or the \textit{alias} keyword. As a
 complement to the explicitly defined types in this section, there is also a list of implicit primitive types in

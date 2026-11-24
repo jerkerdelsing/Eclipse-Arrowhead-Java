@@ -43,7 +43,7 @@
 \ArrowheadType{System Design Description}
 \ArrowheadTypeShort{SysDD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-23}
+\ArrowheadDate{2026-11-24}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -131,10 +131,10 @@ SysD of the same name; its produced services are specified by SDs and IDDs in th
 
 \subsection{Implementation language and tools}
 Java~21 and Spring Boot~4 (Spring Framework~7, Spring Security~7), Spring Data JPA with Hibernate, Jackson for JSON,
-Springdoc for the OpenAPI description, built with Maven~3.9 (in the \texttt{maven:3.9-eclipse-temurin-21} image). The
-system builds on the vendored Arrowhead~5.4.0 common library (\texttt{vendor/common-utils},
-\texttt{vendor/data-transfer-objects}): system registration, identity, TLS, management filters and HTTP consumption
-of other services. The source is module \texttt{workflow-configurator} of \texttt{Eclipse-Arrowhead-java/ah5-Workflow-java}; the
+Springdoc for the OpenAPI description, built with Maven~3.9 (in the \texttt{maven:3.\allowbreak{}9-\allowbreak{}eclipse-\allowbreak{}temurin-\allowbreak{}21} image). The
+system builds on the vendored Arrowhead~5.4.0 common library (\texttt{vendor/\allowbreak{}common-\allowbreak{}utils},
+\texttt{vendor/\allowbreak{}data-\allowbreak{}transfer-\allowbreak{}objects}): system registration, identity, TLS, management filters and HTTP consumption
+of other services. The source is module \texttt{workflow-\allowbreak{}configurator} of \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}java/\allowbreak{}ah5-\allowbreak{}Workflow-\allowbreak{}java}; the
 container image runs the Spring Boot jar on Eclipse Temurin~21.
 
 \subsection{Internal structure}
@@ -145,7 +145,7 @@ container image runs the Spring Boot jar on Eclipse Temurin~21.
 \hline
 \rowcolor{gray!33} Component & Responsibility \\ \hline
 \endhead
-{\footnotesize \texttt{WorkflowConfiguratorSystemInfo}} & Registration of \texttt{workflowConfiguration} and \texttt{generalManagement}. \\ \hline
+{\footnotesize \texttt{Workflow\allowbreak{}Configurator\allowbreak{}System\allowbreak{}Info}} & Registration of \texttt{workflow\allowbreak{}Configuration} and \texttt{general\allowbreak{}Management}. \\ \hline
 {\footnotesize \texttt{api.\allowbreak{}http.\allowbreak{}ConfigurationAPI}} & The seven operations; upstream failures returned with the provider and status. \\ \hline
 {\footnotesize \texttt{service.\allowbreak{}CloudDirectory}} & Clouds, systems, services and executors from the ServiceRegistry and the configurators. \\ \hline
 {\footnotesize \texttt{service.\allowbreak{}RecipeGateway,\allowbreak{} Upstream}} & Calls to the WorkflowManager and other providers through the common library. \\ \hline
@@ -157,7 +157,7 @@ container image runs the Spring Boot jar on Eclipse Temurin~21.
 
 
 \subsection{Functional properties implementation}
-The console connector serves the editor and the same \texttt{/workflowconfigurator/api} operations to an
+The console connector serves the editor and the same \texttt{/\allowbreak{}workflowconfigurator/\allowbreak{}api} operations to an
 authenticated browser session; requests from the console are marked as operator requests and run the service logic
 without an mTLS caller, while the Arrowhead connector returns 404 for console pages. The editor's model module mirrors
 the WorkflowManager's checks for immediate feedback and uses the same codes, so every finding links to the same help
@@ -169,16 +169,16 @@ leader line when the spot is taken.
 \subsubsection{Security}
 Spring Security filter chains of the common library: TLS client authentication, identity-token verification against
 the Authentication system (outsourced authentication), the management filter and the workflow systems'
-\texttt{ServiceAuthorizationFilter}, which maps method and path to service definition and operation and asks
-ConsumerAuthorization (\texttt{authorization.verify}). Object-level checks (holder, owner, configured manager) are made in
+\texttt{Service\allowbreak{}Authorization\allowbreak{}Filter}, which maps method and path to service definition and operation and asks
+ConsumerAuthorization (\texttt{authorization.\allowbreak{}verify}). Object-level checks (holder, owner, configured manager) are made in
 the service logic and give 403.
 \subsubsection{Power management}
 No specific power management. Thread pools are bounded; the WorkflowManager's watchdog and the executor's pull loop are
 the only periodic activities.
 \subsubsection{Internal monitoring}
 Spring Boot health endpoint,
-the common-library log table exposed through \texttt{generalManagement.get-log}, and optional sysMonitor telemetry over
-AMQP (\texttt{sysmonitor.enabled}).
+the common-library log table exposed through \texttt{general\allowbreak{}Management.\allowbreak{}get-\allowbreak{}log}, and optional sysMonitor telemetry over
+AMQP (\texttt{sysmonitor.\allowbreak{}enabled}).
 \subsubsection{Configuration}
 
 {\small
@@ -195,9 +195,9 @@ AMQP (\texttt{sysmonitor.enabled}).
 \texttt{console.\allowbreak{}session-\allowbreak{}seconds} & 28800 & Console session lifetime. \\ \hline
 \texttt{workflow.\allowbreak{}configurator.\allowbreak{}manager} & WorkflowManager & Recipe store. \\ \hline
 \texttt{workflow.\allowbreak{}configurator.\allowbreak{}local-\allowbreak{}cloud-\allowbreak{}configurator} & LocalCloudConfigurator & Design source. \\ \hline
-\texttt{workflow.\allowbreak{}configurator.\allowbreak{}solc-\allowbreak{}configurator} & SoLocalCloudConfigurator & SoLC design source. \\ \hline
+\texttt{workflow.\allowbreak{}configurator.\allowbreak{}solc-\allowbreak{}configurator} & So\allowbreak{}Local\allowbreak{}Cloud\allowbreak{}Configurator & SoLC design source. \\ \hline
 \texttt{workflow.\allowbreak{}configurator.\allowbreak{}solc.\allowbreak{}enabled} & true & List SoLC member clouds. \\ \hline
-\texttt{workflow.\allowbreak{}configurator.\allowbreak{}hidden-\allowbreak{}services} & sysMonitor,generalManagement & Services not offered in the palette. \\ \hline
+\texttt{workflow.\allowbreak{}configurator.\allowbreak{}hidden-\allowbreak{}services} & sys\allowbreak{}Monitor,\allowbreak{}general\allowbreak{}Management & Services not offered in the palette. \\ \hline
 \texttt{workflow.\allowbreak{}standalone} & false & Development mode without core systems. \\ \hline
 \texttt{service.\allowbreak{}authorization.\allowbreak{}enabled} & false (deployment: true) & Provider-side ConsumerAuthorization check. \\ \hline
 \end{longtable}
@@ -208,7 +208,7 @@ AMQP (\texttt{sysmonitor.enabled}).
 \section{Services}
 \label{sec:services}
 \subsection{Produced services}
-All produced services use interface template \texttt{generic\_https}, policy \texttt{CERT\_AUTH} and version 1.0.0 and are
+All produced services use interface template \texttt{generic\_\allowbreak{}https}, policy \texttt{CERT\_AUTH} and version 1.0.0 and are
 registered with every operation's method and path.
 
 {\small
@@ -217,8 +217,8 @@ registered with every operation's method and path.
 \hline
 \rowcolor{gray!33} Service & Operations & Documents \\ \hline
 \endhead
-\texttt{workflowConfiguration} & list-clouds, list-services, list-executors, list-recipes, get-recipe, validate-recipe, store-recipe & \texttt{WorkflowConfigurator-v5.4.0-workflowConfiguration-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{generalManagement} & get-log, get-config & \texttt{Workflow-v5.4.0-generalManagement-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflow\allowbreak{}Configuration} & list-clouds, list-services, list-executors, list-recipes, get-recipe, validate-recipe, store-recipe & \texttt{Workflow\allowbreak{}Configurator-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Configuration-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{general\allowbreak{}Management} & get-log, get-config & \texttt{Workflow-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}general\allowbreak{}Management-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
 \end{longtable}
 }
 
@@ -230,22 +230,22 @@ registered with every operation's method and path.
 \hline
 \rowcolor{gray!33} Service & Provider & Operations & Purpose \\ \hline
 \endhead
-\texttt{serviceDiscovery} & ServiceRegistry & register, revoke, lookup & Registration; executor and fallback discovery. \\ \hline
-\texttt{serviceRegistryManagement} & ServiceRegistry & system-query, service-query & Systems and services of the live cloud (needs a grant and the \texttt{authorization} management policy). \\ \hline
+\texttt{service\allowbreak{}Discovery} & ServiceRegistry & register, revoke, lookup & Registration; executor and fallback discovery. \\ \hline
+\texttt{service\allowbreak{}Registry\allowbreak{}Management} & ServiceRegistry & system-query, service-query & Systems and services of the live cloud (needs a grant and the \texttt{authorization} management policy). \\ \hline
 \texttt{identity} & Authentication & login, logout, identity-verify & Own identity; verification of callers. \\ \hline
 \texttt{authorization} & ConsumerAuthorization & verify & Provider-side authorization. \\ \hline
-\texttt{workflowRecipe} & WorkflowManager & validate, register, query, get & Validation and storage. \\ \hline
-\texttt{localCloudConfiguration} & LocalCloudConfigurator & catalog, list-configurations & Local-cloud designs. \\ \hline
-\texttt{soLocalCloudConfiguration} & SoLocalCloudConfigurator & list-designs, get-design & SoLC member clouds (when \texttt{workflow.configurator.solc.enabled}). \\ \hline
-\texttt{sysMonitor (AMQP)} & SysMonitor broker & publish & When \texttt{sysmonitor.enabled}. \\ \hline
+\texttt{workflow\allowbreak{}Recipe} & WorkflowManager & validate, register, query, get & Validation and storage. \\ \hline
+\texttt{local\allowbreak{}Cloud\allowbreak{}Configuration} & LocalCloudConfigurator & catalog, list-configurations & Local-cloud designs. \\ \hline
+\texttt{so\allowbreak{}Local\allowbreak{}Cloud\allowbreak{}Configuration} & So\allowbreak{}Local\allowbreak{}Cloud\allowbreak{}Configurator & list-designs, get-design & SoLC member clouds (when \texttt{workflow.\allowbreak{}configurator.\allowbreak{}solc.\allowbreak{}enabled}). \\ \hline
+\texttt{sysMonitor (AMQP)} & SysMonitor broker & publish & When \texttt{sysmonitor.\allowbreak{}enabled}. \\ \hline
 \end{longtable}
 }
 
 
 \section{Verification}
 \label{sec:verification}
-Seven Spring tests and 12 Node tests of the editor model (\texttt{node --test
-workflow-configurator/src/test/js/model.test.mjs}), among them a test that every validator code has help text. In the
+Seven Spring tests and 12 Node tests of the editor model (\texttt{node --test}
+\texttt{workflow-\allowbreak{}configurator/\allowbreak{}src/\allowbreak{}test/\allowbreak{}js/\allowbreak{}model.\allowbreak{}test.\allowbreak{}mjs}), all passed on 2026-11-24, among them a test that every validator code has help text. In the
 cloud test the configurator lists the running cloud, three LocalCloudConfigurator designs and five SoLC member clouds,
 refuses a condition reading a later step (422, G03), stores a guarded recipe (201, then 200 for identical content and
 409 for different content) and enforces ConsumerAuthorization at the Arrowhead connector. The editor was also driven in
@@ -255,14 +255,14 @@ a browser to draw, validate, save and reopen a branching workflow, which the Wor
 \section{Implementation variants}
 \label{sec:variants}
 \begin{itemize}
-\item \textbf{Java (reference implementation).} \texttt{Eclipse-Arrowhead-java/ah5-Workflow-java/workflow-configurator}, Java 21, Spring
-Boot, built with Maven together with the shared \texttt{workflow-model} module and the vendored Arrowhead~5.4.0 common
+\item \textbf{Java (reference implementation).} \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}java/\allowbreak{}ah5-\allowbreak{}Workflow-\allowbreak{}java/\allowbreak{}workflow-\allowbreak{}configurator}, Java 21, Spring
+Boot, built with Maven together with the shared \texttt{workflow-\allowbreak{}model} module and the vendored Arrowhead~5.4.0 common
 library.
-\item \textbf{Go.} Not implemented. No workflow system exists in \texttt{Eclipse-Arrowhead-go}.
-\item \textbf{Rust.} Not implemented. No workflow system exists in \texttt{Eclipse-Arrowhead-rust}.
+\item \textbf{Go.} Not implemented. No workflow system exists in \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}go}.
+\item \textbf{Rust.} Not implemented. No workflow system exists in \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}rust}.
 \end{itemize}
 The workflow systems are therefore not yet interoperable across the three implementations. A Go or Rust port must
-reproduce the IDDs of this set exactly and, for the WorkflowManager, the behaviour of \texttt{workflow-model}: the
+reproduce the IDDs of this set exactly and, for the WorkflowManager, the behaviour of \texttt{workflow-\allowbreak{}model}: the
 recipe schema and decoder, the validator's findings and verdicts, the guard grammar and the transition rules. The
 architecture prescribes conformance vectors (recipe in, verdict and transition trace out) to be run by all three
 implementations; they are not written yet.
@@ -280,6 +280,7 @@ implementations; they are not written yet.
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: system design description of the WorkflowConfigurator, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Verification status. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

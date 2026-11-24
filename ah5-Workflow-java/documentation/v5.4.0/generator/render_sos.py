@@ -41,7 +41,7 @@ def whitebox():
 \node[font=\bfseries\small,ArrowheadBlue,anchor=north west] at (-6.0,4.3) {Workstation local cloud};
 \node[ahsys] (wfc) at (-3.8,2.6) {WorkflowConfigurator\\[-1pt]{\scriptsize\normalfont :8484, console :8485}};
 \node[ahsys] (wfm) at (2.2,2.6) {WorkflowManager\\[-1pt]{\scriptsize\normalfont :8482}};
-\node[ahdb] (db) at (4.9,2.6) {ah\_workflow\\(MariaDB)};
+\node[ahdb] (db) at (4.9,2.6) {ah\_workflow\\(embedded)};
 \node[ahext] (lcc) at (-3.8,0.4) {LocalCloudConfigurator,\\ SoLocalCloudConfigurator};
 \node[ahsys] (wfe1) at (-0.8,-1.4) {WorkflowExecutor A\\[-1pt]{\scriptsize\normalfont :8483, push}};
 \node[ahsys] (wfe2) at (4.0,-1.4) {WorkflowExecutor B\\[-1pt]{\scriptsize\normalfont pull}};
@@ -104,7 +104,7 @@ SCEN_CHOR = sequence(
 
 
 def sosd():
-    data_rows = [("WorkflowManager", r"Recipes (immutable), sessions (state $z$ and trace), work items, leases, worklog: database \texttt{ah\_workflow}."),
+    data_rows = [("WorkflowManager", r"Recipes (immutable), sessions (state $z$ and trace), work items, leases, worklog: database \texttt{ah\_workflow}, embedded in the WorkflowManager and reachable only through its services."),
                  ("WorkflowExecutor", "No workflow data; work items in progress in memory."),
                  ("WorkflowConfigurator", "No workflow data; console sessions in memory.")]
     prod_rows = [(r"\texttt{workflowConfiguration}", "WorkflowConfigurator", "Engineers and engineering tools: clouds, services, executors; validate and store workflows."),
@@ -209,7 +209,7 @@ not implemented.
 \item No planning, scheduling or supply-chain functions; no equipment services.
 \item EventHandler-based (\texttt{{event}}) dispatch and workflow events are not implemented.
 \item Equipment adapters for HTTP/HTTPS JSON only.
-\item Extensions (retry, timeout, abort, guards, compensation) are outside the proven model; sessions using them are
+\item Extensions (rebind, retry, timeout, abort, guards, compensation) are outside the proven model; sessions using them are
 flagged.
 \item Java only: the Go and Rust implementations do not exist, so the SoS is not yet interoperable across the three
 implementations.
@@ -240,7 +240,7 @@ certificate.
 \subsection{{Security model}}
 \begin{{itemize}}
 \item \textbf{{Protocol:}} HTTPS (TLS 1.3/1.2) with JSON; interface policy \texttt{{CERT\_AUTH}}.
-\item \textbf{{Data protection:}} TLS on all links including the WorkflowManager's database; secrets from container secrets.
+\item \textbf{{Data protection:}} TLS on all links; each system's database is embedded in its own process, so no database link or port exists; secrets from container secrets.
 \item \textbf{{System authentication:}} X.509 client certificates plus Authentication identity tokens.
 \item \textbf{{Authorization of produced services:}} ConsumerAuthorization grant per service operation at the provider;
 management services sysop only.
@@ -278,13 +278,13 @@ def sosdd():
              ("S-Done", r"$M(s)$ running, invocation returns $d' \neq fail$", r"$M(s) :=$ completed, $\xi(s) := d'$", "WfE invokes, stores and reports SUCCESS"),
              ("A-Finish", r"action active, all its steps completed", r"$M_A(\alpha) :=$ completed", "WfM"),
              ("Z-Close", "all actions completed", r"$status :=$ completed", "WfM; results to product"),
-             ("S-FailBind", "no executor/provider can be bound", r"$status :=$ failed", "WfM (BIND\\_FAILED on all candidates, claim timeout)"),
+             ("S-FailBind", "no executor/provider can be bound", r"$status :=$ failed", "WfM (BIND\\_FAILED or unreachable on all candidates, claim timeout)"),
              ("S-FailInvoke", "invocation fails", r"$status :=$ failed", "WfE reports FATAL\\_ERROR (or ERROR without retry)")]
-    codes = [("SUCCESS", "S-Done", "Continue."), ("FATAL\\_ERROR", "S-FailInvoke", "Session failed (absorbing)."),
+    codes = [("SUCCESS", "S-Done", "Continue."), ("FATAL\\_ERROR", "S-FailInvoke", "Session failed (absorbing); S-FailBind when the step was not bound yet."),
              ("ERROR", "extension x-rebind or x-retry", "Under a retry policy: exclude the executor and bind again (\\texttt{rebind}), or dispatch to the same executor after a backoff (\\texttt{retry}); otherwise as FATAL\\_ERROR."),
-             ("ABORTED", "extension x-abort", "Session failed."), ("BOUND", "completes S-Bind", "Executor may invoke."),
+             ("ABORTED", "--", "Acknowledges an abort (extension x-abort has already failed the session)."), ("BOUND", "completes S-Bind", "Executor may invoke."),
              ("BIND\\_FAILED", "S-Bind not possible", "Next executor, otherwise S-FailBind.")]
-    ext = [("x-rebind", "Retry or re-bind on ERROR or an unreachable executor", "Implemented"),
+    ext = [("x-rebind", "Another executor after ERROR; the one that failed is excluded", "Implemented"),
            ("x-abort", "External abort", "Implemented"), ("x-timeout", "Step timeout", "Implemented"),
            ("compensation", "Release a failed session's leases", "Implemented (configurable)"),
            ("x-retry", "Same-executor retry after a backoff on ERROR (2026-11-24)", "Implemented"),
@@ -308,8 +308,8 @@ def sosdd():
               ("WorkflowConfigurator and editor", "Implemented", "--", "--"),
               ("Federation, disconnected working copy", "Not implemented", "--", "--"),
               ("Conformance vectors for cross-language parity", "Not written", "--", "--")]
-    deploy_rows = [("WorkflowManager", "1 per work-centre local cloud", "8482", "MariaDB/MySQL schema \\texttt{ah\\_workflow} (TLS)", "1 GiB"),
-                   ("WorkflowExecutor", "1 or more per workstation", "8483", "none (embedded H2 log)", "768 MiB"),
+    deploy_rows = [("WorkflowManager", "1 per work-centre local cloud", "8482", "embedded H2 database \\texttt{ah\\_workflow} in a private volume \\texttt{/data}", "1 GiB"),
+                   ("WorkflowExecutor", "1 or more per workstation", "8483", "none (in-memory H2 log)", "768 MiB"),
                    ("WorkflowConfigurator", "1 per cloud (optional)", "8484, console 8485 (loopback)", "none (in-memory H2 log)", "--")]
     fig_wb = figure(whitebox(), "White-box view: the constituent systems in a workstation local cloud and the services between them.", "fig:whitebox", scale="\\textwidth")
     doc = preamble("SoSDD") + front(TITLE, "System of Systems Design Description (white box)", "SoSDD",
@@ -436,12 +436,12 @@ Until then the SoS interoperates with Go and Rust \emph{{core}} systems only thr
 \section{{Verification}}
 \label{{sec:verification}}
 \begin{{itemize}}
-\item Unit tests: 25 model, 9 WorkflowManager, 7 WorkflowExecutor and 7 WorkflowConfigurator tests; 12 Node tests of the
-editor model.
-\item Smoke test in an isolated Docker network: 18/18 checks, including three concurrent forklift sessions without
+\item Unit tests: 35 model, 15 WorkflowManager, 7 WorkflowExecutor and 7 WorkflowConfigurator tests; 12 Node tests of the
+editor model (all passed on 2026-11-24, with the embedded database).
+\item Smoke test in an isolated Docker network with the embedded database: 18/18 checks on 2026-11-24, including three concurrent forklift sessions without
 overlapping tool use and lease expiry after a blocked AGV.
 \item Cloud test against the Java test cloud (RESTRICTED discovery, identity tokens, ConsumerAuthorization):
-49/49 checks, covering registration, discovery, 401/403 cases, binding with the executors' certificates, transition
+49/49 checks on 2026-11-21, before the database was embedded and not repeated since, covering registration, discovery, 401/403 cases, binding with the executors' certificates, transition
 counts, pull mode, abort, compile, the configurator and guarded recipes; Choreographer compatibility 34/34 checks
 against Choreographer 5.4.0.
 \end{{itemize}}

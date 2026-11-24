@@ -43,7 +43,7 @@
 \ArrowheadType{System Description}
 \ArrowheadTypeShort{SysD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-23}
+\ArrowheadDate{2026-11-24}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -160,9 +160,9 @@ whose plans the WorkflowManager can compile recipes to.
 \label{sec:use}
 \begin{enumerate}
 \item An engineer designs a workflow in the WorkflowConfigurator, which validates and registers it through
-\texttt{workflowRecipe}.
-\item A product, line controller or upper WorkflowManager starts a session through \texttt{workflowInstance}, either
-naming the recipe or naming a product system that provides the recipe through \texttt{workflowProduct}.
+\texttt{workflow\allowbreak{}Recipe}.
+\item A product, line controller or upper WorkflowManager starts a session through \texttt{workflow\allowbreak{}Instance}, either
+naming the recipe or naming a product system that provides the recipe through \texttt{workflow\allowbreak{}Product}.
 \item The WorkflowManager enables steps, selects executors by their declared capabilities (push) or publishes work
 items to be claimed (pull), and records bindings, results and failures from the executors' reports.
 \item When every action has completed (Z-Close) it stores the results back at the product; the owner can read the full
@@ -177,10 +177,10 @@ trace at any time.
 name and version, retirement, compilation to Choreographer plans.
 \item Session engine: the session state $z = (M, M_A, \beta, \varepsilon, \xi, status)$ and the eight transition rules
 A-Start, S-Enable, S-Bind, S-Done, A-Finish, Z-Close, S-FailBind and S-FailInvoke, with the Theorem~1 transition count.
-\item Extensions, flagged per session: x-rebind (retry on ERROR or an unreachable executor), x-abort, x-timeout,
-compensation (lease release on failure), x-guard/x-skip (guarded transitions with dead-path elimination).
+\item Extensions, flagged per session: x-rebind (another executor after ERROR), x-retry (the same executor again after a
+backoff), x-abort, x-timeout, compensation (lease release on failure), x-guard/x-skip (guarded transitions with dead-path elimination).
 \item Dispatch: push (executor selection by $\eta(s)$ and $\theta(s)$, least loaded, next executor after BIND\_FAILED),
-pull (atomic claim, holder-only reports, claim timeout); \texttt{event} is accepted and handled as pull.
+pull (atomic claim, holder-only reports, timeout of unclaimed work items); \texttt{event} is accepted and handled as pull.
 \item Session context ($\rho$, $\xi|dep(s)$) for executors; FIFO leases with renewal and expiry for shared resources.
 \item Product integration (retrieve recipe at start, store results at Z-Close) and an audit worklog.
 \end{itemize}
@@ -191,11 +191,13 @@ is configured under the prefix \texttt{workflow.}; the security profile (TLS, au
 common Arrowhead~5 profile.
 
 \subsubsection{Data stored by the system}
-The WorkflowManager owns the database schema \texttt{ah\_workflow}: \texttt{recipe} (immutable canonical JSON per
-version and its status), \texttt{workflow\_session} (the JSON snapshot of $z$ with its trace and an optimistic
+The WorkflowManager owns the database \texttt{ah\_workflow}, embedded in its own process (H2) and stored in a
+private volume (\texttt{/data}) that no other system mounts: \texttt{recipe} (immutable canonical JSON per
+version and its status), \texttt{workflow\_\allowbreak{}session} (the JSON snapshot of $z$ with its trace and an optimistic
 \texttt{revision}), \texttt{work\_item} (one row per step attempt), \texttt{lease}, \texttt{worklog} and \texttt{logs}.
 Storing $z$ as one snapshot keeps the stored state identical to the model object and lets sessions resume after a
-restart.
+restart. Other systems reach this data only through the produced services. A text value (recipe document, session
+snapshot) may hold at most 1\,048\,576 characters.
 
 \subsubsection{Non functional properties}
 \begin{itemize}
@@ -205,7 +207,7 @@ transitions and always progresses (Theorems~1--2 of~\cite{varga2026}); failure i
 proved under assumption (A1) and holds for the lease variant only under an additional, validated configuration
 assumption.
 \item \emph{Latency:} one transition is a database update of the session snapshot; dispatch happens asynchronously on a
-worker pool (\texttt{workflow.worker.threads}, default 8).
+worker pool (\texttt{workflow.\allowbreak{}worker.\allowbreak{}threads}, default 8).
 \item \emph{Energy and power saving:} no specific properties; the system is idle between requests except for the
 claim/timeout watchdog.
 \end{itemize}
@@ -221,9 +223,12 @@ WorkflowManager restart resumes running sessions. Executors keep no durable stat
 \item One local cloud: delegating actions to WorkflowManagers in other clouds through Gatekeeper/GateTunnel and the
 disconnected working copy are designed but not implemented.
 \item EventHandler notifications (\texttt{event} dispatch and workflow events) are not implemented.
+\item \texttt{onError} of a retry policy must be stated: the recipe schema names \texttt{rebind} as default, but the engine
+fails the session when it is absent.
+\item A step without \texttt{timeout\allowbreak{}Seconds} has no limit once an executor holds its work item.
 \item Recovery beyond the listed extensions (compensation of arbitrary steps, \texttt{quantity} $>$ 1) is not provided;
 the theorems do not cover sessions that use extensions.
-\item The \texttt{workflowProduct} side is implemented as a consumer only; no product system exists yet.
+\item The \texttt{workflow\allowbreak{}Product} side is implemented as a consumer only; no product system exists yet.
 \end{itemize}
 
 \newpage
@@ -240,22 +245,22 @@ IDD in this documentation set.
 \hline
 \rowcolor{gray!33} Service & Operations & Documents \\ \hline
 \endhead
-\texttt{workflowRecipe} & validate, register, query, get, retire, compile & \texttt{WorkflowManager-v5.4.0-workflowRecipe-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{workflowInstance} & start, abort, query, get-status, get-trace & \texttt{WorkflowManager-v5.4.0-workflowInstance-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{workflowWorkItem} & claim, report & \texttt{WorkflowManager-v5.4.0-workflowWorkItem-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{workflowContext} & get-parameters, get-results, put-result & \texttt{WorkflowManager-v5.4.0-workflowContext-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{workflowLease} & reserve, poll, renew, release & \texttt{WorkflowManager-v5.4.0-workflowLease-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{workflowManagement} & query-worklog, query-executors, query-work-items & \texttt{WorkflowManager-v5.4.0-workflowManagement-SD}, \texttt{-HTTP-IDD} \\ \hline
-\texttt{generalManagement} & get-log, get-config & \texttt{Workflow-v5.4.0-generalManagement-SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflow\allowbreak{}Recipe} & validate, register, query, get, retire, compile & \texttt{Workflow\allowbreak{}Manager-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Recipe-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflow\allowbreak{}Instance} & start, abort, query, get-status, get-trace & \texttt{Workflow\allowbreak{}Manager-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Instance-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflow\allowbreak{}Work\allowbreak{}Item} & claim, report & \texttt{Workflow\allowbreak{}Manager-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Work\allowbreak{}Item-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflow\allowbreak{}Context} & get-parameters, get-results, put-result & \texttt{Workflow\allowbreak{}Manager-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Context-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflowLease} & reserve, poll, renew, release & \texttt{Workflow\allowbreak{}Manager-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Lease-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{workflow\allowbreak{}Management} & query-worklog, query-executors, query-work-items & \texttt{Workflow\allowbreak{}Manager-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Management-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
+\texttt{general\allowbreak{}Management} & get-log, get-config & \texttt{Workflow-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}general\allowbreak{}Management-\allowbreak{}SD}, \texttt{-HTTP-IDD} \\ \hline
 \end{longtable}
 }
 
 
 \subsection{Consumed services}
 All three workflow systems use the core systems the same way: at start-up they log in at the Authentication
-system (\texttt{identity}) and register their services in the ServiceRegistry (\texttt{serviceDiscovery.register});
-on every incoming request they verify the caller's identity token (\texttt{identity.identity-verify}) and, with
-\texttt{service.authorization.enabled}, the caller's grant (\texttt{authorization.verify} of ConsumerAuthorization);
+system (\texttt{identity}) and register their services in the ServiceRegistry (\texttt{service\allowbreak{}Discovery.\allowbreak{}register});
+on every incoming request they verify the caller's identity token (\texttt{identity.\allowbreak{}identity-\allowbreak{}verify}) and, with
+\texttt{service.\allowbreak{}authorization.\allowbreak{}enabled}, the caller's grant (\texttt{authorization.\allowbreak{}verify} of ConsumerAuthorization);
 at shutdown they revoke their services and log out.
 
 {\small
@@ -264,12 +269,12 @@ at shutdown they revoke their services and log out.
 \hline
 \rowcolor{gray!33} Service & Provider & Operations & Purpose \\ \hline
 \endhead
-\texttt{serviceDiscovery} & ServiceRegistry & register, revoke, lookup & Registration; discovery of executors (\texttt{workflowExecution} with its metadata) and the catalogue check C01. \\ \hline
+\texttt{service\allowbreak{}Discovery} & ServiceRegistry & register, revoke, lookup & Registration; discovery of executors (\texttt{workflow\allowbreak{}Execution} with its metadata) and the catalogue check C01. \\ \hline
 \texttt{identity} & Authentication & login, logout, identity-verify & Own identity token; verification of callers. \\ \hline
 \texttt{authorization} & ConsumerAuthorization & verify & Provider-side authorization of every service operation. \\ \hline
-\texttt{workflowExecution} & WorkflowExecutor & start, abort & Push dispatch and abort of work items. \\ \hline
-\texttt{workflowProduct} & Intelligent Product & retrieve-process-step, store-process-step-result & Product-driven sessions. Contract: \texttt{Workflow-v5.4.0-workflowProduct-SD}. \\ \hline
-\texttt{sysMonitor (AMQP)} & SysMonitor broker & publish & Health and metrics when \texttt{sysmonitor.enabled}. \\ \hline
+\texttt{workflow\allowbreak{}Execution} & WorkflowExecutor & start, abort & Push dispatch and abort of work items. \\ \hline
+\texttt{workflow\allowbreak{}Product} & Intelligent Product & retrieve-process-step, store-process-step-result & Product-driven sessions. Contract: \texttt{Workflow-\allowbreak{}v5.\allowbreak{}4.\allowbreak{}0-\allowbreak{}workflow\allowbreak{}Product-\allowbreak{}SD}. \\ \hline
+\texttt{sysMonitor (AMQP)} & SysMonitor broker & publish & Health and metrics when \texttt{sysmonitor.\allowbreak{}enabled}. \\ \hline
 \end{longtable}
 }
 
@@ -283,24 +288,25 @@ TLS handshake.
 
 \subsection{Security model}
 \begin{itemize}
-\item \textbf{Secure mode only in deployment.} The deployment configuration (\texttt{deployment/*.properties}) enables
-TLS with client authentication (\texttt{server.ssl.client-auth=need}, TLS 1.3 and 1.2), outsourced authentication with
+\item \textbf{Secure mode only in deployment.} The deployment configuration (\texttt{deployment/\allowbreak{}*.\allowbreak{}properties}) enables
+TLS with client authentication (\texttt{server.\allowbreak{}ssl.\allowbreak{}client-\allowbreak{}auth=\allowbreak{}need}, TLS 1.3 and 1.2), outsourced authentication with
 identity tokens bound to the client certificate, interface policy \texttt{CERT\_AUTH} and the CRL check. The packaged
-defaults without TLS exist for development and unit tests (\texttt{workflow.standalone}) and must not be used in a
+defaults without TLS exist for development and unit tests (\texttt{workflow.\allowbreak{}standalone}) and must not be used in a
 cloud.
 \item \textbf{Certificates.} The system has an Arrowhead system certificate
-\texttt{<System>.<cloud>.<organisation>.arrowhead.eu} issued by the local cloud CA, kept in a PKCS\#12 key store; the
+\texttt{<System>.\allowbreak{}<cloud>.\allowbreak{}<organisation>.\allowbreak{}arrowhead.\allowbreak{}eu} issued by the local cloud CA, kept in a PKCS\#12 key store; the
 trust store holds the cloud CA. Non-Arrowhead certificates are refused at the TLS layer.
 \item \textbf{Provider-side authorization.} Every operation of the registered services (other than management) is
-checked against ConsumerAuthorization (\texttt{authorization.verify}) for the calling system, the service definition
-and the operation (route tables \texttt{ServiceOperations} and \texttt{ConfiguratorOperations}). A missing grant gives
+checked against ConsumerAuthorization (\texttt{authorization.\allowbreak{}verify}) for the calling system, the service definition
+and the operation (route tables \texttt{Service\allowbreak{}Operations} and \texttt{Configurator\allowbreak{}Operations}). A missing grant gives
 403.
-\item \textbf{Management.} \texttt{generalManagement} and \texttt{workflowManagement} are protected by
-\texttt{management.policy=sysop-only}.
-\item \textbf{Data protection.} All service traffic is encrypted by TLS. The WorkflowManager's database connection uses
-TLS with server certificate verification (\texttt{sslMode=verify-full}). Secrets (store, identity and database
-passwords, the console password hash) come from container secrets (\texttt{configtree:/run/secrets/}), not from the
-image.
+\item \textbf{Management.} \texttt{general\allowbreak{}Management} and \texttt{workflow\allowbreak{}Management} are protected by
+\texttt{management.\allowbreak{}policy=\allowbreak{}sysop-\allowbreak{}only}.
+\item \textbf{Data protection.} All service traffic is encrypted by TLS. Each system is responsible for its own data:
+its database runs inside its own process, so there is no database connection, port or account that another system could
+use, and its data is reachable only through its services. Secrets (store and identity passwords, the WorkflowManager's
+database password, the console password hash) come from container secrets (\texttt{configtree:/\allowbreak{}run/\allowbreak{}secrets/}), not from
+the image.
 \end{itemize}
 
 
@@ -320,6 +326,7 @@ a work item may report on it or read and write its context; only the owner of a 
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: system description of the WorkflowManager, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Embedded database instead of a separate database server; extension x-retry, extension names and retry states as implemented; delimitations. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

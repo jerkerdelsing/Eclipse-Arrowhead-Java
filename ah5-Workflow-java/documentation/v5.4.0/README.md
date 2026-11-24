@@ -1,6 +1,6 @@
 # Workflow documentation 5.4.0
 
-Arrowhead-style LaTeX documentation of the workflow support systems in `ah5-Workflow-java`, written from the Java reference implementation on 2026-11-23 (status: review draft). The document class, bibliography style and logo come from `roadmap/Documentation_templates/LaTeX`, and every document follows the section structure of the matching template.
+Arrowhead-style LaTeX documentation of the workflow support systems in `ah5-Workflow-java`, written from the Java reference implementation on 2026-11-23 and revised on 2026-11-24 for the embedded WorkflowManager database and the retry extension (status: review draft). The document class, bibliography style and logo come from `roadmap/Documentation_templates/LaTeX`, and every document follows the section structure of the matching template.
 
 | Level | Documents |
 | --- | --- |
@@ -20,7 +20,7 @@ python3 generator/generate.py   # only when a service contract or text changed
 ./build-docs.sh                 # builds every PDF; fails on undefined references or citations
 ```
 
-The `.tex` files are generated from `generator/` (`model.py` holds the data models, `services.py` the operations, `render_systems.py` and `render_sos.py` the system and SoS texts). To change a document, edit the generator and regenerate: hand edits to a `.tex` file are lost at the next generation.
+The `.tex` files are generated from `generator/` (`model.py` holds the data models, `services.py` the operations, `render_systems.py` and `render_sos.py` the system and SoS texts). To change a document, edit the generator and regenerate: hand edits to a `.tex` file are lost at the next generation. The second row of a revision history comes from `AMENDMENTS` in `generate.py`; documents not listed there are unchanged since the first edition.
 
 ## Sources and gaps
 
@@ -28,3 +28,5 @@ The `.tex` files are generated from `generator/` (`model.py` holds the data mode
 - The formal model follows Varga, *Sensors* 2026, 26, 7025. The design rationale follows ../../ARCHITECTURE.md.
 - **Go and Rust:** no implementation exists. Every IDD, SysDD and the SoSDD states this; the workflow systems are not yet interoperable across the three implementations.
 - `workflowProduct` is a proposed contract. Only the WorkflowManager's consumer side exists.
+- **`onError` default:** `model/recipe.schema.json` names `rebind` as default, but the WorkflowManager fails the session when a retry policy has no `onError`. The documents describe the implemented behaviour.
+- **Cloud test:** the 49/49 result is from 2026-11-21, before the database was embedded; it has not been repeated.

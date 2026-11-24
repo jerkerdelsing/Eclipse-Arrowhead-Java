@@ -43,7 +43,7 @@
 \ArrowheadType{System of Systems Description (black box)}
 \ArrowheadTypeShort{SoSD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-23}
+\ArrowheadDate{2026-11-24}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -187,7 +187,7 @@ systems and towards the equipment services. Per workflow: the recipe.
 \hline
 \rowcolor{gray!33} System & Data \\ \hline
 \endhead
-WorkflowManager & Recipes (immutable), sessions (state $z$ and trace), work items, leases, worklog: database \texttt{ah\_workflow}. \\ \hline
+WorkflowManager & Recipes (immutable), sessions (state $z$ and trace), work items, leases, worklog: database \texttt{ah\_workflow}, embedded in the WorkflowManager and reachable only through its services. \\ \hline
 WorkflowExecutor & No workflow data; work items in progress in memory. \\ \hline
 WorkflowConfigurator & No workflow data; console sessions in memory. \\ \hline
 \end{longtable}
@@ -215,7 +215,7 @@ not implemented.
 \item No planning, scheduling or supply-chain functions; no equipment services.
 \item EventHandler-based (\texttt{event}) dispatch and workflow events are not implemented.
 \item Equipment adapters for HTTP/HTTPS JSON only.
-\item Extensions (retry, timeout, abort, guards, compensation) are outside the proven model; sessions using them are
+\item Extensions (rebind, retry, timeout, abort, guards, compensation) are outside the proven model; sessions using them are
 flagged.
 \item Java only: the Go and Rust implementations do not exist, so the SoS is not yet interoperable across the three
 implementations.
@@ -225,7 +225,7 @@ implementations.
 \section{Services}
 \label{sec:services}
 Only the services below cross the boundary of the SoS. The services between its constituent systems
-(\texttt{workflowExecution}, \texttt{workflowWorkItem}, \texttt{workflowContext}, \texttt{workflowLease}) are internal and
+(\texttt{workflow\allowbreak{}Execution}, \texttt{workflow\allowbreak{}Work\allowbreak{}Item}, \texttt{workflow\allowbreak{}Context}, \texttt{workflowLease}) are internal and
 described in the SoSDD, although they are ordinary Arrowhead services that other systems could use.
 
 \subsection{Produced services}
@@ -236,11 +236,11 @@ described in the SoSDD, although they are ordinary Arrowhead services that other
 \hline
 \rowcolor{gray!33} Service & Provider & Consumers and purpose \\ \hline
 \endhead
-\texttt{workflowConfiguration} & WorkflowConfigurator & Engineers and engineering tools: clouds, services, executors; validate and store workflows. \\ \hline
-\texttt{workflowRecipe} & WorkflowManager & Engineering tools, upper WorkflowManagers: recipe catalogue, compile to Choreographer plans. \\ \hline
-\texttt{workflowInstance} & WorkflowManager & Products, line controllers, upper WorkflowManagers: start, observe and abort sessions. \\ \hline
-\texttt{workflowManagement} & WorkflowManager & Sysop: worklog, executors, work items. \\ \hline
-\texttt{generalManagement} & all three & Sysop: logs and configuration. \\ \hline
+\texttt{workflow\allowbreak{}Configuration} & WorkflowConfigurator & Engineers and engineering tools: clouds, services, executors; validate and store workflows. \\ \hline
+\texttt{workflow\allowbreak{}Recipe} & WorkflowManager & Engineering tools, upper WorkflowManagers: recipe catalogue, compile to Choreographer plans. \\ \hline
+\texttt{workflow\allowbreak{}Instance} & WorkflowManager & Products, line controllers, upper WorkflowManagers: start, observe and abort sessions. \\ \hline
+\texttt{workflow\allowbreak{}Management} & WorkflowManager & Sysop: worklog, executors, work items. \\ \hline
+\texttt{general\allowbreak{}Management} & all three & Sysop: logs and configuration. \\ \hline
 Choreographer executor interface & WorkflowExecutor & The Choreographer (compatibility, not registered). \\ \hline
 \end{longtable}
 }
@@ -254,14 +254,14 @@ Choreographer executor interface & WorkflowExecutor & The Choreographer (compati
 \hline
 \rowcolor{gray!33} Service & Provider & Purpose \\ \hline
 \endhead
-\texttt{serviceDiscovery}, \texttt{serviceRegistryManagement} & ServiceRegistry & Registration, executor discovery, cloud listing. \\ \hline
+\texttt{service\allowbreak{}Discovery}, \texttt{service\allowbreak{}Registry\allowbreak{}Management} & ServiceRegistry & Registration, executor discovery, cloud listing. \\ \hline
 \texttt{identity} & Authentication & Identity tokens of the systems. \\ \hline
 \texttt{authorization} & ConsumerAuthorization & Provider-side checks of every operation. \\ \hline
-\texttt{serviceOrchestration} & DynamicServiceOrchestration & Provider of each step, with the executor as requester. \\ \hline
+\texttt{service\allowbreak{}Orchestration} & Dynamic\allowbreak{}Service\allowbreak{}Orchestration & Provider of each step, with the executor as requester. \\ \hline
 step services & Equipment and application systems & The work of each step. \\ \hline
-\texttt{workflowProduct} & Intelligent Product & Recipe retrieval and result storage. \\ \hline
-\texttt{localCloudConfiguration}, \texttt{soLocalCloudConfiguration} & LocalCloudConfigurator, SoLocalCloudConfigurator & Designed clouds for the editor. \\ \hline
-\texttt{choreographerExecutor} & Choreographer & Registration and step notification (compatibility). \\ \hline
+\texttt{workflow\allowbreak{}Product} & Intelligent Product & Recipe retrieval and result storage. \\ \hline
+\texttt{local\allowbreak{}Cloud\allowbreak{}Configuration}, \texttt{so\allowbreak{}Local\allowbreak{}Cloud\allowbreak{}Configuration} & LocalCloudConfigurator, SoLocalCloudConfigurator & Designed clouds for the editor. \\ \hline
+\texttt{choreographer\allowbreak{}Executor} & Choreographer & Registration and step notification (compatibility). \\ \hline
 \end{longtable}
 }
 
@@ -278,7 +278,7 @@ certificate.
 \subsection{Security model}
 \begin{itemize}
 \item \textbf{Protocol:} HTTPS (TLS 1.3/1.2) with JSON; interface policy \texttt{CERT\_AUTH}.
-\item \textbf{Data protection:} TLS on all links including the WorkflowManager's database; secrets from container secrets.
+\item \textbf{Data protection:} TLS on all links; each system's database is embedded in its own process, so no database link or port exists; secrets from container secrets.
 \item \textbf{System authentication:} X.509 client certificates plus Authentication identity tokens.
 \item \textbf{Authorization of produced services:} ConsumerAuthorization grant per service operation at the provider;
 management services sysop only.
@@ -302,6 +302,7 @@ hash), session cookie, Host/Origin checks and lockout.
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: black-box description of the Workflow SoS, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Embedded database instead of a separate database server; data ownership. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

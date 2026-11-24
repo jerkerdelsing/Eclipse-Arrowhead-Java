@@ -2,7 +2,8 @@
 import re
 
 EDITION = "5.4.0"
-DATE = "2026-11-23"
+DATE = "2026-11-23"      # first edition
+REVISED = "2026-11-24"   # second revision
 AUTHOR = "Documentation maintenance"
 CONTACT = "Repository maintainers"
 STATUS = "REVIEW DRAFT"
@@ -23,6 +24,27 @@ def tt(s):
     out = esc(s)
     out = re.sub(r"([/.=-])", r"\1\\allowbreak{}", out)
     return r"\texttt{" + out + "}"
+
+
+_VERBATIM = re.compile(r"(\\begin\{lstlisting\}.*?\\end\{lstlisting\}|\\begin\{tikzpicture\}.*?\\end\{tikzpicture\}|\\(?:sub)*section\*?\{[^\n]*\}|\\caption\{[^\n]*\})", re.S)
+_TT = re.compile(r"\\texttt\{((?:[^{}\\]|\\_|\\#|\\ldots)*)\}")
+
+
+def soften(text):
+    """Lets long monospace names break: after '/', '.', '-', '=' and '_', and between the words of a camelCase name."""
+    def name(m):
+        s = m.group(1)
+        if len(s) < 14 or " " in s and max(len(w) for w in s.split()) < 14:
+            return m.group(0)
+        s = re.sub(r"(\\_|[/.=-])(?=[^}\s])", r"\1\\allowbreak{}", s)
+        s = re.sub(r"(?<=[a-z])(?=[A-Z][a-z])", r"\\allowbreak{}", s)
+        return "\\texttt{" + s + "}"
+    text = "".join(part if i % 2 else _TT.sub(name, part) for i, part in enumerate(_VERBATIM.split(text)))
+    # plain system and service names in narrow table cells
+    for word in ("DynamicServiceOrchestration", "SoLocalCloudConfigurator", "sysMonitor,generalManagement"):
+        soft = re.sub(r"(?<=[a-z])(?=[A-Z][a-z])|(?<=,)", r"\\allowbreak{}", word)
+        text = text.replace("& %s &" % word, "& %s &" % soft)
+    return text
 
 
 # ------------------------------------------------------------------ preambles (macros copied from the templates)

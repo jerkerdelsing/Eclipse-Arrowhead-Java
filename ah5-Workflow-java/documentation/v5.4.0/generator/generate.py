@@ -11,6 +11,41 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import render_services  # noqa: E402
 
+from latex import AUTHOR, DATE, REVISED, soften  # noqa: E402
+
+DATABASE = "Embedded database instead of a separate database server"
+RETRY = "extension x-retry, extension names and retry states as implemented"
+# Amendments of the second revision: document name part -> subject. A document that is not listed keeps its first edition.
+AMENDMENTS = [
+    ("Workflow-v5.4.0-SoSD.tex", DATABASE + "; data ownership."),
+    ("Workflow-v5.4.0-SoSDD.tex", DATABASE + "; reaction to ERROR, ABORTED and unreachable executors; verification status."),
+    ("WorkflowManager-v5.4.0-SysD.tex", DATABASE + "; " + RETRY + "; delimitations."),
+    ("WorkflowManager-v5.4.0-SysDD.tex", DATABASE + "; " + RETRY + "; claim timeout, defaults and verification status."),
+    ("WorkflowExecutor-v5.4.0-SysD.tex", "Data protection, log storage and behaviour after a restart."),
+    ("WorkflowExecutor-v5.4.0-SysDD.tex", "Verification status."),
+    ("WorkflowConfigurator-v5.4.0-SysD.tex", "Data protection; recipe summaries and the retry policy in the editor."),
+    ("WorkflowConfigurator-v5.4.0-SysDD.tex", "Verification status."),
+    ("workflowRecipe", "Retry policy as implemented."),
+    ("workflowConfiguration", "Retry policy as implemented."),
+    ("workflowProduct", "Retry policy as implemented."),
+    ("workflowInstance", "Extension names; rule x-retry."),
+    ("workflowWorkItem", "Claim timeout; reactions to the reports; waiting for a retry."),
+    ("workflowExecution", "Retry policy as implemented; behaviour after a restart."),
+    ("workflowManagement", "Work item states of the retry extension."),
+]
+
+
+def amend(name, text):
+    subject = next((s for part, s in AMENDMENTS if part == name or ("-%s-" % part) in name), None)
+    if subject is None:
+        return text
+    first = "& %s \\\\ \\hline\n\\end{tabularx}\n\n\\subsection{Quality Assurance}" % AUTHOR
+    if text.count(first) != 1 or text.count("\\ArrowheadDate{%s}" % DATE) != 1:
+        raise SystemExit("revision table of %s not found" % name)
+    row = "& %s \\\\ \\hline\n2 & %s & \\arrowversion & %s & %s \\\\ \\hline\n\\end{tabularx}\n\n\\subsection{Quality Assurance}" % (AUTHOR, REVISED, subject, AUTHOR)
+    return text.replace(first, row).replace("\\ArrowheadDate{%s}" % DATE, "\\ArrowheadDate{%s}" % REVISED)
+
+
 OUT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -27,7 +62,7 @@ def all_files():
         out.update(render_sos.files())
     except ImportError:
         pass
-    return out
+    return {name: soften(amend(name, text)) for name, text in out.items()}
 
 
 def main():

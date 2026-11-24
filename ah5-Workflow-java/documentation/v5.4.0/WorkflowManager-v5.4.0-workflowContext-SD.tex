@@ -84,7 +84,7 @@
 
   % Front Page Abstract
   \begin{abstract}
-    This document describes the \texttt{workflowContext} service of the Eclipse Arrowhead workflow support systems, which gives executors the session parameters and the results their step may read, and stores step results. It is provided by the WorkflowManager system, service version 1.0.0, documentation edition 5.4.0.
+    This document describes the \texttt{workflow\allowbreak{}Context} service of the Eclipse Arrowhead workflow support systems, which gives executors the session parameters and the results their step may read, and stores step results. It is provided by the WorkflowManager system, service version 1.0.0, documentation edition 5.4.0.
   \end{abstract}
 
   \vspace*{1cm}
@@ -100,7 +100,7 @@
 
 \section{Overview}
 \label{sec:overview}
-The \texttt{workflowContext} service holds the session context: the parameters $\rho$ fixed at the
+The \texttt{workflow\allowbreak{}Context} service holds the session context: the parameters $\rho$ fixed at the
 start of a session and the results $\xi$ stored by completed steps. An executor holding a work item for step $s$ reads
 $\rho$ and $\xi|dep(s)$, the results of the steps $s$ depends on, composes the request $\kappa_s(\rho, \xi|dep(s))$ and
 stores the provider's answer as $\xi(s)$ before reporting success. The context replaces ad hoc data passing between
@@ -111,13 +111,13 @@ In Section~\ref{sec:operations}, we describe the abstract message operations pro
 In Section~\ref{sec:model}, we end the document by presenting the data types used by the mentioned operations.
 
 \subsection{Significant Prior Art}
-The session-context service of the Arrowhead workflow kits (\texttt{github.com/palvarga/arrowhead-workflows})
+The session-context service of the Arrowhead workflow kits (\texttt{github.\allowbreak{}com/\allowbreak{}palvarga/\allowbreak{}arrowhead-\allowbreak{}workflows})
 and Lemma~2 of~\cite{varga2026}: for a well-formed recipe a step never runs on missing data.
 
 \subsection{How This Service Is Meant to Be Used}
 Before invoking the provider of step $s$, the executor calls \oref{get-parameters} and \oref{get-results}
 for its work item; after a successful invocation it calls \oref{put-result} and only then reports \texttt{SUCCESS}
-through \texttt{workflowWorkItem}.
+through \texttt{workflow\allowbreak{}Work\allowbreak{}Item}.
 
 \subsection{Important Delimitations and Dependencies}
 \label{sec:delimitations}
@@ -133,7 +133,7 @@ through \texttt{workflowWorkItem}.
 \newpage
 \section{Service Interface}
 \label{sec:operations}
-This section describes the interface of the \texttt{workflowContext} service. Each subsection names an abstract operation,
+This section describes the interface of the \texttt{workflow\allowbreak{}Context} service. Each subsection names an abstract operation,
 an input type and an output type, in that order. The input type is named inside parentheses, while the output type is
 preceded by a colon. Input and output types are only denoted when accepted or returned, respectively, by the operation
 in question. All abstract data types named in this section are defined in Section~\ref{sec:model}. The concrete
@@ -178,7 +178,7 @@ Stores $\xi(s)$ for the work item's step.
 \newpage
 \section{Information Model}
 \label{sec:model}
-Here, all data objects that can be part of the \texttt{workflowContext} service are listed in alphabetic order. Each
+Here, all data objects that can be part of the \texttt{workflow\allowbreak{}Context} service are listed in alphabetic order. Each
 subsection, which describes one type of object, begins with the \textit{struct} keyword (a collection of named fields,
 each with its own data type), the \textit{enum} keyword (a closed set of values) or the \textit{alias} keyword. As a
 complement to the explicitly defined types in this section, there is also a list of implicit primitive types in

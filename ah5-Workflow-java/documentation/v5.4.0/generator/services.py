@@ -148,7 +148,7 @@ results back when the session completes. The owner follows the session with \ore
 stop it with \oref{abort}. \oref{query} lists sessions, e.g. all \texttt{running} ones.""",
         delimitations=r"""\begin{itemize}
 \item Failure is absorbing: a failed session never resumes. A new session must be started.
-\item Theorems~1--2 hold only for sessions without extensions. The \texttt{extensions} field and \texttt{withinModel} in the trace say whether a session used retry/rebind, abort, timeout or guarded skipping.
+\item Theorems~1--2 hold only for sessions without extensions. The \texttt{extensions} field and \texttt{withinModel} in the trace say whether a session used rebind or retry, abort, timeout, guarded skipping or lease compensation.
 \item Only the owner (the starting system) or a sysop may abort a session.
 \item Sessions run in one local cloud. Delegation of actions to WorkflowManagers in other clouds is not implemented.
 \item The \texttt{event} dispatch mode is accepted but handled as \texttt{pull}.
@@ -216,8 +216,8 @@ then reports \texttt{SUCCESS}, \texttt{ERROR} or \texttt{FATAL\_ERROR}. Push-mod
 through \texttt{workflowExecution.start} and report the same way.""",
         delimitations=r"""\begin{itemize}
 \item The claim is atomic: one executor per work item attempt. Only the holder (or a sysop) may report on a work item.
-\item A claimed work item that is not reported within \texttt{workflow.pull.claim-timeout} (default 300\,s) fails the step with S-FailBind.
-\item A report on a work item that is no longer active (already done, failed or aborted) is refused (409).
+\item A published work item that nobody claims within \texttt{workflow.pull.claim-timeout} (default 300\,s) fails the step with S-FailBind. A claimed work item is limited only by the step's \texttt{timeoutSeconds} (extension x-timeout, counted from the creation of the work item).
+\item A report on a work item that is no longer active (already done or failed), or that waits for its retry (\texttt{RETRY\_WAIT}), is refused (409). A late report on an aborted work item is accepted and ignored.
 \end{itemize}""",
         ops=[
             op("claim", "POST", "/claim", "ClaimRequest", "WorkItem",
@@ -230,11 +230,11 @@ through \texttt{workflowExecution.start} and report the same way.""",
   "input": { "temperature": "${result.read.temperature}", "threshold": "${param.threshold}" },
   "parameters": { "threshold": 23 }, "dependencyResults": { "read": { "temperature": 21.5 } } }"""),
             op("report", "POST", "/report", "WorkItemReport", "",
-               r"Reports on a held work item. \texttt{BOUND} completes S-Bind; \texttt{SUCCESS} fires S-Done with the stored result; \texttt{BIND\_FAILED} tries the next executor or fires S-FailBind; \texttt{ERROR} rebinds under a retry policy or fires S-FailInvoke; \texttt{FATAL\_ERROR} fires S-FailInvoke.",
+               r"Reports on a held work item. \texttt{BOUND} completes S-Bind; \texttt{SUCCESS} fires S-Done with the stored result; \texttt{BIND\_FAILED} tries the next executor or fires S-FailBind; \texttt{ERROR} causes x-rebind or x-retry while the step's retry policy allows another attempt, and otherwise fails the session; \texttt{FATAL\_ERROR} fails the session; \texttt{ABORTED} acknowledges an abort. A failure is recorded as S-FailInvoke when the step was bound and as S-FailBind when it was not.",
                "200 OK, empty body.",
                [("400", r"\texttt{workItemId} or \texttt{status} missing, or unknown status."),
                 ("403", "The work item is held by another executor."),
-                ("409", "The work item is no longer active.")],
+                ("409", "The work item is no longer active, or waits for its retry.")],
                req="""{ "workItemId": "5d2c0b1e-...", "status": "SUCCESS", "result": { "heat": true } }"""),
         ],
         structs=["ClaimRequest", "WorkItem", "WorkItemReport"],
@@ -375,7 +375,7 @@ returns at once; the result arrives later as a report. The WorkflowManager calls
 aborted or a step times out.""",
         delimitations=r"""\begin{itemize}
 \item Only the configured WorkflowManager (\texttt{workflow.manager.system-name}) or a sysop may start or abort work items (403 otherwise).
-\item The executor keeps no durable state; after a restart \oref{get-status} answers \texttt{UNKNOWN} and the WorkflowManager's claim timeout or step timeout applies.
+\item The executor keeps no durable state; after a restart \oref{get-status} answers \texttt{UNKNOWN} and the step timeout applies when the step's policy sets one. Without it the WorkflowManager keeps waiting for the report.
 \item Equipment is invoked through adapters; the reference implementation has the generic HTTP/HTTPS JSON adapter only.
 \item An executor never consumes services outside its local cloud unless the step's policy allows it (\texttt{localCloudOnly = false}).
 \end{itemize}""",
