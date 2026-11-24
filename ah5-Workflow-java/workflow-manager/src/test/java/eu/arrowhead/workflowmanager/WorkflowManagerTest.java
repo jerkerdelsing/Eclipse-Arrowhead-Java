@@ -90,11 +90,12 @@ class WorkflowManagerTest {
 	@DynamicPropertySource
 	static void properties(final DynamicPropertyRegistry registry) {
 		registry.add("arrowhead.security.profile", () -> "development");
-		registry.add("spring.datasource.url", () -> "jdbc:h2:mem:wfm;MODE=MariaDB;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1");
+		registry.add("spring.datasource.url", () -> "jdbc:h2:mem:wfm;MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;IGNORECASE=TRUE;CACHE_SIZE=16384;INIT=RUNSCRIPT FROM 'classpath:database/schema.sql';DB_CLOSE_DELAY=-1");
 		registry.add("spring.datasource.driver-class-name", () -> "org.h2.Driver");
 		registry.add("spring.datasource.username", () -> "sa");
 		registry.add("spring.datasource.password", () -> "");
-		registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+		// the schema is the system's own schema.sql (INIT of the url); Hibernate only validates it
+		registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
 		registry.add("sysmonitor.enabled", () -> "false");
 		registry.add("workflow.standalone", () -> "true");
 		registry.add("workflow.pull.claim-timeout", () -> "2");

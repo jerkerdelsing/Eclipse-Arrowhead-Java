@@ -100,7 +100,7 @@ ConsumerAuthorization for the WorkflowConfigurator:
 
 ## Deployment prerequisites
 
-- **Database.** Create the schema with `create_empty_db.sql`, `create_tables.sql` and `grant_privileges.sql` (MariaDB or MySQL 8.4). Hibernate validates the schema at start-up.
+- **Database.** WorkflowManager keeps its data in its own embedded database (H2) in `/data` (`DATABASE_DIRECTORY`), a volume that only its container mounts. It applies `workflow-manager/src/main/resources/database/schema.sql` at start-up; Hibernate validates it. `ah.db-password` opens the database file: keep it after the first start.
 - **System names** are normalized to PascalCase by the common library (`wfe-agv` becomes `WfeAgv`). Use PascalCase names; with TLS the name is the certificate CN. Run one WorkflowExecutor per workstation or capability set, each with its own `spring.application.name`.
 - **Secure configuration.** Start each system with `--spring.config.additional-location=file:deployment/<system>.properties`. The keystore `/certs/<System>.p12`, the truststore and the secrets `ah.store-password` and `ah.identity-password` (plus `ah.db-password` for the WorkflowManager) are files in `/run/secrets`. Each system needs an Authentication identity of its own name. `verification/cloud/` is a worked example.
 - **ConsumerAuthorization:**

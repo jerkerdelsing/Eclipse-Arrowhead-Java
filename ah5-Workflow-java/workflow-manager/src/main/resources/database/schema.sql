@@ -1,4 +1,5 @@
-USE `ah_workflow`;
+-- Schema of the system's own embedded database (H2, MySQL compatibility mode). Run on every connection by the
+-- INIT option of spring.datasource.url, so every statement must be idempotent.
 
 CREATE TABLE IF NOT EXISTS `logs` (
   `log_id` varchar(100) NOT NULL,

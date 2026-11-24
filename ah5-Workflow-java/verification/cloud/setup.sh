@@ -13,9 +13,7 @@ mkdir -p "$STATE/systems"
 [ -n "$(cloud_verifiers)" ] || { echo "VERIFIERS not found in the cloud's configure-orchestration-dependency-policies.sh" >&2; exit 1; }
 
 rand() { printf %s "$(openssl rand -hex 18)"; }
-[ -f "$STATE/db-root-password" ] || rand > "$STATE/db-root-password"
 [ -f "$STATE/db-password" ] || rand > "$STATE/db-password"
-printf "ALTER USER 'workflowmanager'@'%%' IDENTIFIED BY '%s';\nFLUSH PRIVILEGES;\n" "$(cat "$STATE/db-password")" > "$STATE/04-db-password.sql"
 
 echo "Certificates (signed by the $CLOUD_NAME CA):"
 for entry in $SYSTEMS; do

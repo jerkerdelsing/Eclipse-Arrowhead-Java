@@ -74,15 +74,9 @@
       <artifactId>spring-boot-starter-integration</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.mariadb.jdbc</groupId>
-      <artifactId>mariadb-java-client</artifactId>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
       <scope>runtime</scope>
-      <exclusions>
-        <exclusion>
-          <groupId>com.github.waffle</groupId>
-          <artifactId>waffle-jna</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
     <dependency>
       <groupId>com.lmax</groupId>
@@ -99,12 +93,7 @@
       <artifactId>amqp-client</artifactId>
       <version>5.37.1</version>
     </dependency>
-    <dependency>
-      <groupId>com.h2database</groupId>
-      <artifactId>h2</artifactId>
-      <scope>test</scope>
-    </dependency>
-  </dependencies>
+    </dependencies>
   <build>
     <plugins>
       <plugin>

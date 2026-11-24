@@ -20,34 +20,14 @@ x-wfe: &wfe
   depends_on: { workflowmanager: { condition: service_started } }
   command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.config.additional-location=file:/app/config/application.properties"]
 services:
-  workflowmanager-db:
-    image: mysql:8.4.13
-    networks: [db]
-    mem_limit: 768m
-    command: ["--innodb-use-native-aio=0"]
-    environment:
-      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db-root
-    secrets: [db-root]
-    volumes:
-      - ../../workflow-manager/src/main/resources/database/create_empty_db.sql:/docker-entrypoint-initdb.d/01.sql:ro
-      - ../../workflow-manager/src/main/resources/database/create_tables.sql:/docker-entrypoint-initdb.d/02.sql:ro
-      - ../../workflow-manager/src/main/resources/database/grant_privileges.sql:/docker-entrypoint-initdb.d/03.sql:ro
-      - ./.state/04-db-password.sql:/docker-entrypoint-initdb.d/04.sql:ro
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 --silent"]
-      interval: 3s
-      retries: 60
   workflowmanager:
     <<: *java
-    depends_on: { workflowmanager-db: { condition: service_healthy } }
     mem_limit: 1g
-    networks: { arrowhead: { aliases: [workflowmanager] }, db: {} }
+    networks: { arrowhead: { aliases: [workflowmanager] } }
     ports: ["127.0.0.1:18482:8482"]
     environment:
       <<: *env
       DOMAIN_NAME: workflowmanager
-      # encrypted, not verified: the test database has MySQL's self-signed certificate on a private network
-      WFM_DATASOURCE_URL: jdbc:mariadb://workflowmanager-db:3306/ah_workflow?sslMode=trust
     secrets:
       - { source: wfm-store, target: ah.store-password }
       - { source: wfm-identity, target: ah.identity-password }
@@ -56,6 +36,7 @@ services:
       - ../../workflow-manager/target/arrowhead-workflowmanager-5.4.0.jar:/app/app.jar:ro
       - ../../deployment/workflowmanager.properties:/app/config/application.properties:ro
       - ./.state/systems/WorkflowManager:/certs:ro
+      - wfm-data:/data
       - ${CLOUD_DIR:?run through run-cloud-test.sh}/security/crl:/crl:ro
     command: ["java", "-Xmx256m", "-jar", "/app/app.jar", "--spring.config.additional-location=file:/app/config/application.properties",
       "--workflow.pull.claim-timeout=30", "--workflow.executor.discovery.cache-seconds=5"]
@@ -135,9 +116,7 @@ services:
     command: ["python", "-I", "/eq/equipment.py"]
 networks:
   arrowhead: { external: true, name: arrowhead-v53-test-cloud-network }
-  db: {}
 secrets:
-  db-root: { file: ./.state/db-root-password }
   db-user: { file: ./.state/db-password }
   wfm-store: { file: ./.state/systems/WorkflowManager/store-password }
   wfm-identity: { file: ./.state/systems/WorkflowManager/identity-password }
@@ -153,3 +132,5 @@ secrets:
   wfc-identity: { file: ./.state/systems/WorkflowConfigurator/identity-password }
   wfc-console: { file: ./.state/systems/WorkflowConfigurator/console-password-hash }
   equipment-identity: { file: ./.state/systems/WfEquipment/identity-password }
+volumes:
+  wfm-data: {}
