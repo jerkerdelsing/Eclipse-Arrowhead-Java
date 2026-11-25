@@ -336,7 +336,7 @@ sequenceDiagram
 
 ## 10 Services
 
-All names follow the Arrowhead 5 camelCase service-definition convention. Each system also provides `generalManagement` and `sysMonitor`, like the other 5.x support systems.
+All names follow the Arrowhead 5 camelCase service-definition convention. Each system also provides `generalManagement` and `sysMonitor`, like the other 5.x support systems. Since 2026-11-25 the WorkflowManager's `sysMonitor` also offers `executorLiveness` (suspected executors, published at once and in every cycle) and `workItemLost` (one event per work item given up, with `equipmentMayBeInUse`, `workRepeated` and `detectionSeconds`); SysMonitor users subscribe to them like to `echo`, `power` and `status`. They are published only when `sysmonitor.enabled` is true.
 
 ### 10.1 WorkflowManager — provided
 

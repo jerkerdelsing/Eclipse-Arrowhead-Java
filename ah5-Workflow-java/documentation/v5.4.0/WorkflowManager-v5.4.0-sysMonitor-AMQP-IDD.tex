@@ -1,0 +1,409 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+\newcommand{\fparam}[1]{\textit{\textcolor{ArrowheadBlue}{#1}}}
+%% Special references
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\oref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:operations:#1]{#1}}}}
+\newcommand{\pdef}[1]{{\textcolor{ArrowheadGrey}{#1\label{sec:model:primitives:#1}\label{sec:model:primitives:#1s}}}}
+\newcommand{\pref}[1]{{\textcolor{ArrowheadGrey}{\hyperref[sec:model:primitives:#1]{#1}}}}
+
+\newrobustcmd\osubsection[5]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}operation \textcolor{ArrowheadBlue}{#1}}
+  \subsection*{
+    \thesubsection\quad
+    #2 \textcolor{ArrowheadPurple}{#3} \\
+    \small
+    \hspace*{0.075\textwidth}\begin{minipage}{0.1\textwidth}
+      \vspace*{1mm}
+      Operation: \\
+      \notblank{#4}{Input: \\}{}
+      \notblank{#5}{Output: \\}{}
+    \end{minipage}
+    \begin{minipage}{0.825\textwidth}
+      \vspace*{1mm}
+      \textcolor{ArrowheadBlue}{#1} \\
+      \notblank{#4}{\mref{#4} \\}{}
+      \notblank{#5}{\mref{#5} \\}{}
+    \end{minipage}
+  }
+  \label{sec:operations:#1}
+}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2} \label{sec:model:#2s}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{sysMonitor AMQP/TLS/JSON}
+\ArrowheadServiceID{sysMonitor}
+\ArrowheadType{Interface Design Description}
+\ArrowheadTypeShort{IDD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-25}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  \Large{Service ID: \textit{``\arrowid''}}
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the AMQP/TLS/JSON interface of the WorkflowManager's own observation types of the \texttt{sysMonitor} service, service version 1.0.0, documentation edition 5.4.0. It realises the \texttt{sysMonitor} SD of the WorkflowManager.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+The WorkflowManager publishes its observations as persistent AMQP 0-9-1 messages with content type
+\texttt{application/\allowbreak{}json}~\cite{rfc8259} to the topic exchange of the local cloud (\texttt{sysmonitor.\allowbreak{}exchange}) and waits
+for the broker's confirmation. The contract of the envelope and of \texttt{echo}, \texttt{power} and \texttt{status} is
+SysMonitor-AMQP-IDD-5.2.2; this document adds the types \texttt{executor\allowbreak{}Liveness} and \texttt{workItemLost}.
+
+Section~\ref{sec:operations} specifies the publications, Section~\ref{sec:model} the data models,
+Section~\ref{sec:subscription} the subscription, Section~\ref{sec:security} the security requirements and
+Section~\ref{sec:implementations} the implementations.
+
+\newpage
+\section{Service Operations}
+\label{sec:operations}
+
+{\small
+\begin{longtable}{|p{3.2cm}|p{1.5cm}|p{7.6cm}|p{3.5cm}|}
+
+\hline
+\rowcolor{gray!33} Type & Method & Routing key & Value \\ \hline
+\endhead
+\oref{executorLiveness} & publish & \texttt{\{cloud\}.sysmonitor.\allowbreak{}WorkflowManager.\allowbreak{}\{instance\}.\allowbreak{}executorLiveness} & \mref{ExecutorLiveness} \\ \hline
+\oref{workItemLost} & publish & \texttt{\{cloud\}.sysmonitor.\allowbreak{}WorkflowManager.\allowbreak{}\{instance\}.\allowbreak{}workItemLost} & \mref{WorkItemLost} \\ \hline
+\end{longtable}
+}
+
+In the headings \texttt{\{base\}} is \texttt{\{cloud\}.sysmonitor.WorkflowManager.\{instance\}}.
+\osubsection{executorLiveness}{publish}{\{base\}.executorLiveness}{}{ExecutorLiveness}
+State. It is published in every publication cycle (\texttt{sysmonitor.\allowbreak{}publish.\allowbreak{}interval}) and at once when an
+executor becomes suspected, is cleared, refuses the question, or a work item is lost. A subscriber therefore learns of a
+possible loss at the first failed check, before the grace period \texttt{lost\allowbreak{}After\allowbreak{}Seconds} has passed, and can secure the
+equipment. Quality is \texttt{good} in the states \texttt{ok} and \texttt{disabled}, otherwise \texttt{uncertain};
+\texttt{heldWorkItems} is as of the last check.
+\osubsection{workItemLost}{publish}{\{base\}.workItemLost}{}{WorkItemLost}
+Event, one per lost work item, with quality \texttt{uncertain}. It is kept, and published again with the same
+observation id, until the broker has confirmed it, so a subscriber may receive it more than once. At most 1000
+unpublished events are kept, in memory: a restart of the WorkflowManager before the broker confirms an event loses the
+event (the worklog of \texttt{workflow\allowbreak{}Management} still holds the loss).
+
+\subsection{Envelope}
+Every message carries the common envelope:
+
+{\small
+\begin{longtable}{|p{5.6cm}|p{10.2cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Value \\ \hline
+\endhead
+\texttt{schemaVersion} & \texttt{1.0} \\ \hline
+\texttt{observationId} & \texttt{WorkflowManager-\{type\}-\{UUID\}}; repeated unchanged when an event is published again. \\ \hline
+\texttt{provider\allowbreak{}System}, \texttt{service\allowbreak{}Instance}, \texttt{observation\allowbreak{}Type} & As in the routing key; SysMonitor refuses a difference. \\ \hline
+\texttt{sourceTime} & When the value was taken (UTC). \\ \hline
+\texttt{value} & \mref{ExecutorLiveness} or \mref{WorkItemLost}. \\ \hline
+\texttt{unit} & \texttt{1} for \texttt{executor\allowbreak{}Liveness}, null for \texttt{workItemLost}. \\ \hline
+\texttt{quality} & \texttt{good} or \texttt{uncertain}. \\ \hline
+\texttt{sequence}, \texttt{metadata} & As for the common observation types. \\ \hline
+\end{longtable}
+}
+
+
+\begin{lstlisting}[caption={A lost work item (shortened, from the test with a killed executor)}]
+{ "schemaVersion": "1.0",
+  "observationId": "WorkflowManager-workItemLost-ef1abb7c-4d77-433d-8a7d-0c4aa8a78041",
+  "providerSystem": "WorkflowManager", "serviceInstance": "WorkflowManager",
+  "observationType": "workItemLost", "sourceTime": "2026-11-25T08:23:29.607Z",
+  "value": { "workItemId": "8867b471-47c0-4392-abd9-38f949345e2b", "sessionId": 1,
+    "action": "a", "step": "work", "attempt": 1, "bound": true,
+    "recipe": "rebind@1.0.0", "executor": "WfeA", "cause": "unreachable",
+    "detail": "executor WfeA cannot be reached: ...",
+    "lastSeen": "2026-11-25T08:22:42.495Z",
+    "suspectedSince": "2026-11-25T08:23:17.472Z",
+    "lostAt": "2026-11-25T08:23:29.607Z", "detectionSeconds": 47.112,
+    "equipmentMayBeInUse": true, "outcome": "rebind", "workRepeated": true },
+  "unit": null, "quality": "uncertain" }
+\end{lstlisting}
+
+
+\section{Subscription}
+\label{sec:subscription}
+SysMonitor offers the types it finds in the registration. A subscription to both, at SysMonitor's management service:
+
+\begin{lstlisting}
+PUT /sysmonitor/management/subscriptions/WorkflowManager
+{ "observationTypes": ["executorLiveness", "workItemLost"], "enabled": true }
+\end{lstlisting}
+
+SysMonitor then publishes them on MQTT as \texttt{arrowhead/\{cloud\}/sysmonitor/\allowbreak{}data/workItemLost/\allowbreak{}WorkflowManager} and
+\texttt{.\allowbreak{}.\allowbreak{}.\allowbreak{}/\allowbreak{}executor\allowbreak{}Liveness/\allowbreak{}Workflow\allowbreak{}Manager}. A message that arrives twice is stored once (\texttt{observationId}).
+
+\newpage
+\section{Data Models}
+\label{sec:model}
+\msubsection{struct}{ExecutorLiveness}
+Which executors are suspected of no longer running the work items they hold.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{state} & \mref{LivenessState} & yes & Summary of the last check. \\ \hline
+\texttt{heldWorkItems} & \pref{Integer} & yes & Work items dispatched to, claimed by or bound to executors. \\ \hline
+\texttt{suspected\allowbreak{}Executors} & \pref{List}$<$\mref{SuspectedExecutor}$>$ & yes & Executors that did not confirm a work item they hold. \\ \hline
+\texttt{unchecked\allowbreak{}Executors} & \pref{List}$<$\pref{SystemName}$>$ & yes & Executors that refuse \texttt{workflow\allowbreak{}Execution.\allowbreak{}get-\allowbreak{}status}; nothing is known about them. \\ \hline
+\texttt{lostWorkItems} & \pref{Integer} & yes & Work items lost since the WorkflowManager started. \\ \hline
+\texttt{checkSeconds} & \pref{Duration} & yes & \texttt{workflow.\allowbreak{}executor.\allowbreak{}liveness.\allowbreak{}check-\allowbreak{}seconds}. \\ \hline
+\texttt{lost\allowbreak{}After\allowbreak{}Seconds} & \pref{Duration} & yes & \texttt{workflow.\allowbreak{}executor.\allowbreak{}liveness.\allowbreak{}lost-\allowbreak{}after-\allowbreak{}seconds}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{LivenessState}
+Summary of the liveness check.
+ Encoded as a JSON string.
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{ok} & No executor is suspected. \\ \hline
+\texttt{suspect} & At least one executor is suspected. \\ \hline
+\texttt{unchecked} & None is suspected, but at least one refuses the question. \\ \hline
+\texttt{disabled} & The check is off (\texttt{check-seconds} is 0). \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{LossCause}
+Why an executor is suspected.
+ Encoded as a JSON string.
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{notRunning} & It answers that it does not run the work item. \\ \hline
+\texttt{unreachable} & It does not answer. \\ \hline
+\texttt{unregistered} & It is no longer in the ServiceRegistry. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{LossOutcome}
+What follows for the step of a lost work item.
+ Encoded as a JSON string.
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{nextExecutor} & It was not bound: the next executor takes it, without an extension. \\ \hline
+\texttt{rebind} & x-rebind: another executor runs the step. \\ \hline
+\texttt{retry} & x-retry: the same executor runs it after the backoff. \\ \hline
+\texttt{sessionFailed} & S-FailInvoke: the retry policy allows no further attempt. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{SuspectedExecutor}
+An executor that did not confirm work items it holds.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{executor} & \pref{SystemName} & yes & The executor. \\ \hline
+\texttt{cause} & \mref{LossCause} & yes & Why it is suspected. \\ \hline
+\texttt{since} & \pref{DateTime} & yes & When its first work item was suspected. \\ \hline
+\texttt{workItemCount} & \pref{Integer} & yes & Suspected work items of this executor. \\ \hline
+\texttt{workItems} & \pref{List}$<$\mref{SuspectedWorkItem}$>$ & yes & The work items; at most 100 are listed over all executors. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{SuspectedWorkItem}
+A suspected work item.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{workItemId} & \pref{WorkItemId} & yes & The work item. \\ \hline
+\texttt{sessionId} & \pref{SessionId} & yes & Its session. \\ \hline
+\texttt{action} & \pref{Name} & yes & Its action. \\ \hline
+\texttt{step} & \pref{Name} & yes & Its step. \\ \hline
+\texttt{attempt} & \pref{Integer} & yes & Attempt number of the step. \\ \hline
+\texttt{bound} & \pref{Boolean} & yes & Whether the executor reported BOUND, after which it uses the equipment. \\ \hline
+\texttt{lastSeen} & \pref{DateTime} & yes & When the executor last confirmed or reported the work item. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{WorkItemLost}
+A work item that the WorkflowManager gave up because its executor is gone.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{workItemId} & \pref{WorkItemId} & yes & The work item. \\ \hline
+\texttt{sessionId} & \pref{SessionId} & yes & Its session. \\ \hline
+\texttt{recipe} & \pref{String} & yes & Recipe as \texttt{name@version}. \\ \hline
+\texttt{action} & \pref{Name} & yes & Its action. \\ \hline
+\texttt{step} & \pref{Name} & yes & Its step. \\ \hline
+\texttt{attempt} & \pref{Integer} & yes & Attempt number of the step. \\ \hline
+\texttt{executor} & \pref{SystemName} & yes & The executor that held it. \\ \hline
+\texttt{cause} & \mref{LossCause} & yes & Why it was given up. \\ \hline
+\texttt{detail} & \pref{String} & yes & The cause in words. \\ \hline
+\texttt{bound} & \pref{Boolean} & yes & Whether it was bound. \\ \hline
+\texttt{lastSeen} & \pref{DateTime} & yes & When the executor last confirmed or reported it. \\ \hline
+\texttt{suspected\allowbreak{}Since} & \pref{DateTime} & yes & When the first check failed. \\ \hline
+\texttt{lostAt} & \pref{DateTime} & yes & When it was given up. \\ \hline
+\texttt{detection\allowbreak{}Seconds} & \pref{Duration} & yes & \texttt{lostAt} minus \texttt{lastSeen}: the longest time the loss can have gone unnoticed. \\ \hline
+\texttt{equipment\allowbreak{}May\allowbreak{}Be\allowbreak{}In\allowbreak{}Use} & \pref{Boolean} & yes & True for a bound work item: an executor that is only cut off may still be running the step. \\ \hline
+\texttt{outcome} & \mref{LossOutcome} & yes & What follows for the step. \\ \hline
+\texttt{workRepeated} & \pref{Boolean} & yes & Whether a bound step is run again, so that its work may be done twice. \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Primitives}
+\label{sec:model:primitives}
+The abstract primitive types of the SD are represented in JSON~\cite{rfc8259} as follows.
+\subsubsection*{alias \pdef{Boolean}}
+JSON \texttt{true} or \texttt{false}.
+
+\subsubsection*{alias \pdef{DateTime}}
+JSON string in the RFC 3339 format~\cite{rfc3339}, e.g. \texttt{2026-\allowbreak{}11-\allowbreak{}25T10:15:30Z}.
+
+\subsubsection*{alias \pdef{Duration}}
+JSON number of seconds.
+
+\subsubsection*{alias \pdef{Integer}}
+JSON number without fraction.
+
+\subsubsection*{alias \pdef{List}}
+JSON array.
+
+\subsubsection*{alias \pdef{Name}}
+JSON string matching \texttt{\^{}[A-Za-z][A-Za-z0-9\_-]\{0,62\}\$}.
+
+\subsubsection*{alias \pdef{SessionId}}
+JSON number (64-bit integer); a path segment when used in a path.
+
+\subsubsection*{alias \pdef{String}}
+JSON string (UTF-8).
+
+\subsubsection*{alias \pdef{SystemName}}
+JSON string.
+
+\subsubsection*{alias \pdef{WorkItemId}}
+JSON string holding a UUID; a path segment when used in a path.
+
+
+\section{Security}
+\label{sec:security}
+The connection uses TLS~\cite{rfc8446} with mutual authentication; the broker takes the user from the certificate (SASL
+EXTERNAL). Its access control list must allow WorkflowManager to publish
+\texttt{\{base\}.\#} (Section~\ref{sec:operations}), which covers the two types. The offer is registered with
+interface template \texttt{generic\_\allowbreak{}amqps} and policy \texttt{CERT\_AUTH}. Nothing is published, and no event is kept,
+while \texttt{sysmonitor.\allowbreak{}enabled} is false.
+
+\section{Implementations}
+\label{sec:implementations}
+\begin{itemize}
+\item \textbf{Java (reference).} Class \texttt{Executor\allowbreak{}Observations} of \texttt{workflow-\allowbreak{}manager}; the common library publishes
+it (\texttt{Sys\allowbreak{}Monitor\allowbreak{}Source}, \texttt{Sys\allowbreak{}Monitor\allowbreak{}Publisher}).
+\item \textbf{Go and Rust.} They have no workflow systems and so do not publish these types: the workflow systems are
+\emph{not} interoperable across the three implementations. By inspection of their sources, the SysMonitor systems in Go and
+Rust accept any observation type, so they can store and subscribe to these; this has not been tested with them.
+\end{itemize}
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-25 & \arrowversion & Initial edition: interface design description of the WorkflowManager's sysMonitor observation types over AMQP/TLS/JSON, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}

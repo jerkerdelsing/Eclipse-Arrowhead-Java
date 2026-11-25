@@ -271,6 +271,7 @@ def sosdd():
         ("workflowExecution", "WfE", "WfM", "service-info, start, abort, get-status"),
         ("workflowProduct", "Product", "WfM", "retrieve-process-step, store-process-step-result"),
         ("generalManagement", "all", "Sysop", "get-log, get-config"),
+        ("sysMonitor (AMQP)", "all", "SysMonitor", "echo, power, status; WorkflowManager also executorLiveness, workItemLost"),
     ]
     rules = [("A-Start", r"$M_A(\alpha)$ inactive, predecessor action completed", r"$M_A(\alpha) :=$ active", "WfM"),
              ("S-Enable", r"action active, $M(s)$ inactive, all $p \in pre(s)$ completed", r"$M(s) :=$ enabled", "WfM; work item published or dispatched"),

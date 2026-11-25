@@ -43,7 +43,7 @@
 \ArrowheadType{System of Systems Design Description (white box)}
 \ArrowheadTypeShort{SoSDD}
 \ArrowheadVersion{5.4.0}
-\ArrowheadDate{2026-11-24}
+\ArrowheadDate{2026-11-25}
 \ArrowheadAuthor{Documentation maintenance}
 \ArrowheadStatus{REVIEW DRAFT}
 \ArrowheadContact{Repository maintainers}
@@ -165,6 +165,7 @@ WorkflowConfigurator & 8484 / 8485 & Design tool and console & SysD, SysDD \\ \h
 \texttt{workflow\allowbreak{}Execution} & WfE & WfM & service-info, start, abort, get-status \\ \hline
 \texttt{workflow\allowbreak{}Product} & Product & WfM & retrieve-process-step, store-process-step-result \\ \hline
 \texttt{general\allowbreak{}Management} & all & Sysop & get-log, get-config \\ \hline
+\texttt{sysMonitor (AMQP)} & all & SysMonitor & echo, power, status; WorkflowManager also executorLiveness, workItemLost \\ \hline
 \end{longtable}
 }
 
@@ -547,6 +548,7 @@ against Choreographer 5.4.0.
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: white-box design description of the Workflow SoS, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
 2 & 2026-11-24 & \arrowversion & Embedded database instead of a separate database server; reaction to ERROR, ABORTED and unreachable executors; verification status. & Documentation maintenance \\ \hline
+3 & 2026-11-25 & \arrowversion & Lost and suspected executors as sysMonitor observations. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

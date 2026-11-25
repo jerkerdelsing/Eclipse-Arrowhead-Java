@@ -74,6 +74,8 @@ backoff), x-abort, x-timeout, compensation (lease release on failure), x-guard/x
 \item Dispatch: push (executor selection by $\eta(s)$ and $\theta(s)$, least loaded, next executor after BIND\_FAILED),
 pull (atomic claim, holder-only reports, timeout of unclaimed work items); liveness check of the executors holding
 work items; \texttt{event} is accepted and handled as pull.
+\item Monitoring data for SysMonitor users to subscribe to: \texttt{executorLiveness} (suspected executors, at once and
+in every cycle) and \texttt{workItemLost} (one event per lost work item).
 \item Session context ($\rho$, $\xi|dep(s)$) for executors; FIFO leases with renewal and expiry for shared resources.
 \item Product integration (retrieve recipe at start, store results at Z-Close) and an audit worklog.
 \end{itemize}""",
@@ -104,7 +106,8 @@ disconnected working copy are designed but not implemented.
 \item EventHandler notifications (\texttt{event} dispatch and workflow events) are not implemented.
 \item A step whose executor answers that it is still running has no time limit unless its policy sets
 \texttt{timeoutSeconds}. An executor cut off from the WorkflowManager may still be using equipment when its work item is
-declared lost; a step that must not be repeated should have no retry policy.
+declared lost (reported as \texttt{equipmentMayBeInUse} through sysMonitor); a step that must not be repeated should have
+no retry policy.
 \item Recovery beyond the listed extensions (compensation of arbitrary steps, \texttt{quantity} $>$ 1) is not provided;
 the theorems do not cover sessions that use extensions.
 \item The \texttt{workflowProduct} side is implemented as a consumer only; no product system exists yet.
@@ -121,7 +124,7 @@ the theorems do not cover sessions that use extensions.
               ("authorization", "ConsumerAuthorization", "verify", "Provider-side authorization of every service operation."),
               ("workflowExecution", "WorkflowExecutor", "start, abort, get-status", r"Push dispatch and abort of work items; liveness check."),
               ("workflowProduct", "Intelligent Product", "retrieve-process-step, store-process-step-result", "Product-driven sessions."),
-              ("sysMonitor (AMQP)", "SysMonitor broker", "publish", r"Health and metrics when \texttt{sysmonitor.enabled}.")],
+              ("sysMonitor (AMQP)", "SysMonitor broker", "publish", r"\texttt{echo}, \texttt{power}, \texttt{status}, \texttt{executorLiveness} and \texttt{workItemLost}, when \texttt{sysmonitor.enabled}; see the WorkflowManager's sysMonitor SD and AMQP IDD.")],
     config=[("server.port", "8482", "Arrowhead connector port."),
             ("workflow.workstation.id", "(empty)", r"Workstation identifier sent to products."),
             ("workflow.dispatch.default", "push", r"Dispatch mode when neither the session nor the recipe gives one."),
@@ -140,12 +143,13 @@ the theorems do not cover sessions that use extensions.
             ("management.policy", "(deployment: sysop-only)", "Protection of the management services."),
             ("DATABASE_DIRECTORY", "./data (deployment: /data)", "Directory of the embedded database; a volume of this system only."),
             ("spring.datasource.password", "(secret ah.db-password)", r"Opens the database file. Set before the first start and kept: a changed value locks the system out of its data."),
-            ("sysmonitor.enabled", "true (deployment: false)", r"Publish sysMonitor telemetry over AMQP; the deployment enables it with \texttt{SYSMONITOR\_ENABLED}.")],
+            ("sysmonitor.enabled", "true (deployment: false)", r"Publish sysMonitor telemetry over AMQP; the deployment enables it with \texttt{SYSMONITOR\_ENABLED}. While it is off, lost executors are reported only in the worklog.")],
     components=[("WorkflowManagerSystemInfo", "Registration: system model, the seven services and their HTTP operations."),
                 ("api.http.RecipeAPI, InstanceAPI, WorkItemAPI, ContextAPI, LeaseAPI, WorkflowManagementAPI, GeneralManagementAPI", "HTTP controllers of the services; DTOs in \\texttt{api.dto}; errors mapped by \\texttt{WorkflowExceptionAdvice} (409) and the common handler."),
                 ("engine.WorkflowEngine", "Drives sessions: load the snapshot, apply rules (\\texttt{WorkflowSession} of \\texttt{workflow-model}), dispatch, handle claims and reports, watchdog for claim timeouts, step timeouts and retry backoffs, resume after restart. One lock per session."),
                 ("service.RecipeService, CatalogueCheck", "Catalogue: parse (unknown fields rejected), validate (\\texttt{RecipeValidator} plus the \\texttt{RecipeCheck} SPI with C01/C02), store canonical JSON, retire, compile."),
                 ("service.ExecutorDirectory, HttpExecutorGateway", "Executor set $WE$ from the ServiceRegistry (\\texttt{workflowExecution} metadata) and static configuration; push calls to executors."),
+                ("service.ExecutorObservations", "Findings of the liveness check as sysMonitor observations (\\texttt{SysMonitorSource} of the common library)."),
                 ("service.LeaseService", "FIFO leases with tokens, renewal, expiry and session release."),
                 ("service.ProductGateway", "Consumer of \\texttt{workflowProduct}."),
                 ("service.WorklogService, jpa.*", "Worklog and persistence: Spring Data JPA on the embedded H2 database; the system applies \\texttt{database/schema.sql} at start and Hibernate only validates it."),
@@ -168,7 +172,9 @@ Every \texttt{workflow.executor.liveness.check-seconds} the engine asks each exe
 work items it holds. A work item is lost when the executor answers in two checks in a row that it does not run it, or
 stays unreachable or unregistered for \texttt{lost-after-seconds}; a lost item that was not bound goes to the next
 executor without an extension, a bound one is handled like \texttt{ERROR}. A refused question (missing grant for
-\texttt{get-status}) and a failed discovery prove nothing and lose nothing. Guards are evaluated by
+\texttt{get-status}) and a failed discovery prove nothing and lose nothing. Each finding is published through sysMonitor
+without waiting for the next publication cycle: the first failed check as \texttt{executorLiveness}, the loss as
+\texttt{workItemLost}, with what follows for the step and whether the equipment may still be in use. Guards are evaluated by
 \texttt{GuardExpression} from $\rho$ and $\xi$ when a step completes; a step whose incoming transitions were all not
 taken is skipped (x-skip).""",
 )

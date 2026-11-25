@@ -26,6 +26,7 @@ import java.util.function.Function;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -36,6 +37,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,6 +45,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 
 import eu.arrowhead.common.exception.ForbiddenException;
+import eu.arrowhead.common.sysmonitor.SysMonitorPublisher;
+import eu.arrowhead.common.sysmonitor.SysMonitorReading;
 import eu.arrowhead.workflow.model.session.Markings.Rule;
 import eu.arrowhead.workflow.model.session.WorkflowSession;
 import eu.arrowhead.workflow.wire.AbortRequest;
@@ -58,6 +62,7 @@ import eu.arrowhead.workflowmanager.engine.WorkflowEngine;
 import eu.arrowhead.workflowmanager.jpa.entity.SessionRecord;
 import eu.arrowhead.workflowmanager.service.ExecutorDirectory.ExecutorEndpoint;
 import eu.arrowhead.workflowmanager.service.ExecutorGateway;
+import eu.arrowhead.workflowmanager.service.ExecutorObservations;
 import eu.arrowhead.workflowmanager.service.LeaseService;
 import eu.arrowhead.workflowmanager.service.RecipeService;
 
@@ -86,6 +91,13 @@ class WorkflowManagerTest {
 
 	@Autowired
 	private SimulatedExecutors executors;
+
+	@Autowired
+	private ExecutorObservations observations;
+
+	/** A publisher that never publishes: the observations stay with their source, where the tests read them. */
+	@MockitoBean
+	private SysMonitorPublisher publisher;
 
 	private final ObjectMapper json = new ObjectMapper();
 
@@ -513,6 +525,12 @@ class WorkflowManagerTest {
 		assertEquals(2, tried.size());
 		assertFalse(tried.get(0).equals(tried.get(1)), tried::toString);
 		assertEquals(1, count(z, Rule.X_REBIND));
+		final Map<String, Object> lost = lostOf("forgotten-rebind").value();
+		assertEquals("rebind", lost.get("outcome"));
+		assertEquals("notRunning", lost.get("cause"));
+		assertEquals(tried.get(0), lost.get("executor"));
+		assertEquals(true, lost.get("equipmentMayBeInUse"));
+		assertEquals(true, lost.get("workRepeated"));
 	}
 
 	@Test
@@ -524,6 +542,10 @@ class WorkflowManagerTest {
 		assertEquals(2, tried.size());
 		assertFalse(tried.get(0).equals(tried.get(1)), tried::toString);
 		assertTrue(z.extensions().isEmpty(), z.extensions()::toString);
+		final Map<String, Object> lost = lostOf("lost-unbound").value();
+		assertEquals("nextExecutor", lost.get("outcome"));
+		assertEquals(false, lost.get("equipmentMayBeInUse"));
+		assertEquals(false, lost.get("workRepeated"));
 	}
 
 	@Test
@@ -531,9 +553,30 @@ class WorkflowManagerTest {
 		vanishing("unreachable", "", WorkflowManagerTest::boundOnly);
 		executors.liveness = executor -> { throw new eu.arrowhead.common.exception.ExternalServerError("connection refused"); };
 		final long begin = System.currentTimeMillis();
-		final WorkflowSession z = awaitEnd(start("unreachable", null, null));
+		final long id = start("unreachable", null, null);
+		// the suspicion is published before the grace period ends
+		while (!"suspect".equals(liveness().get("state"))) {
+			assertTrue(System.currentTimeMillis() - begin < 5000);
+			sleep(50);
+		}
+		final Map<?, ?> suspected = (Map<?, ?>) ((List<?>) liveness().get("suspectedExecutors")).get(0);
+		assertEquals("unreachable", suspected.get("cause"));
+		assertEquals("poll", ((Map<?, ?>) ((List<?>) suspected.get("workItems")).get(0)).get("step"));
+		assertEquals("running", engine.get(id).getStatus());
+		Mockito.verify(publisher, Mockito.atLeastOnce()).publishSourcesNow();
+		final WorkflowSession z = awaitEnd(id);
 		assertEquals("failed", z.status().name());
 		assertTrue(System.currentTimeMillis() - begin >= 3000);
+		final SysMonitorReading event = lostOf("unreachable");
+		assertEquals("sessionFailed", event.value().get("outcome"));
+		assertEquals("unreachable", event.value().get("cause"));
+		assertTrue(java.time.Instant.parse((String) event.value().get("lastSeen")).isBefore(java.time.Instant.parse((String) event.value().get("suspectedSince"))));
+		assertTrue((double) event.value().get("detectionSeconds") >= 3);
+		assertEquals(0, ((List<?>) liveness().get("suspectedExecutors")).size());
+		// the event is offered until the publisher confirms it
+		assertTrue(observations.events().contains(event));
+		observations.published(event);
+		assertFalse(observations.events().contains(event));
 	}
 
 	@Test
@@ -545,7 +588,24 @@ class WorkflowManagerTest {
 		executors.liveness = executor -> { throw new ForbiddenException("no grant for get-status"); };
 		sleep(5000);
 		assertEquals("running", engine.get(running).getStatus());
+		assertEquals("unchecked", liveness().get("state"));
+		assertFalse(((List<?>) liveness().get("uncheckedExecutors")).isEmpty());
 		engine.abort(running, "LineController", false, "test over");
+	}
+
+	private Map<String, Object> liveness() {
+		return observations.state().get(0).value();
+	}
+
+	private SysMonitorReading lostOf(final String recipe) {
+		for (int i = 0; i < 100; i++) {
+			final var found = observations.events().stream().filter(e -> (recipe + "@1.0.0").equals(e.value().get("recipe"))).findFirst();
+			if (found.isPresent()) {
+				return found.get();
+			}
+			sleep(50);
+		}
+		throw new AssertionError("no workItemLost for " + recipe + ": " + observations.events());
 	}
 
 	private static void sleep(final long millis) {

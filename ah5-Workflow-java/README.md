@@ -175,7 +175,7 @@ The paths and operation names are in `workflow-model/.../wire/WorkflowServices.j
 | WorkflowExecutor | `workflowExecution` | `service-info`, `start`, `abort`, `get-status` under `/workflowexecutor/execution` |
 | | Choreographer interface (not registered) | `service-info`, `start`, `abort` under `/workflowexecutor/choreographer` |
 | WorkflowConfigurator | `workflowConfiguration` | `list-clouds`, `list-services`, `list-executors`, `list-recipes`, `get-recipe`, `validate-recipe`, `store-recipe` under `/workflowconfigurator/api` |
-| all | `generalManagement`, `sysMonitor` | as in the other 5.x systems |
+| all | `generalManagement`, `sysMonitor` | as in the other 5.x systems; WorkflowManager's `sysMonitor` also publishes `executorLiveness` and `workItemLost` (lost executors), which SysMonitor users can subscribe to. Needs `SYSMONITOR_ENABLED=true`, the broker ACL and the SysMonitor grant |
 
 Report codes from executor to manager:
 

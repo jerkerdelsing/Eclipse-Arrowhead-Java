@@ -66,6 +66,21 @@ public class SysMonitorObservationsTest {
 		assertEquals((long) status.get("sequence") + 1, power.get("sequence"));
 	}
 
+	//-------------------------------------------------------------------------------------------------
+	@Test
+	public void readingKeepsItsIdAndTimeWhenRepeated() {
+		final SysMonitorReading reading = new SysMonitorReading("id1", "workItemLost", NOW, Map.of("step", "poll"), null, false);
+		final Map<String, Object> first = observations.of(reading);
+		final Map<String, Object> second = observations.of(reading);
+
+		assertEquals("Blacklist-workItemLost-id1", first.get("observationId"));
+		assertEquals(first.get("observationId"), second.get("observationId"));
+		assertEquals("2026-10-11T12:00:00.123Z", second.get("sourceTime"));
+		assertEquals("workItemLost", first.get("observationType"));
+		assertEquals("uncertain", first.get("quality"));
+		assertEquals("poll", value(first).get("step"));
+	}
+
 	//=================================================================================================
 	// assistant methods
 

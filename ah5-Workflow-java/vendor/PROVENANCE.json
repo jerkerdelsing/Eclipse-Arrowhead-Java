@@ -204,9 +204,9 @@
     "common-utils/src/main/java/eu/arrowhead/common/security/CertificateProfileType.java": "a765a77a363cdf89000e33677e01c006a032d604939e21117e68be8df914a405",
     "common-utils/src/main/java/eu/arrowhead/common/security/CorsConfig.java": "7852d37fcae2c3fced8576cb9a28b47a6ef5b2b2d5ce9c84b557807e6f513576",
     "common-utils/src/main/java/eu/arrowhead/common/sysmonitor/SysMonitorHealthIndicator.java": "8559ce85c99005c75e69309e8ab0009fe24bcf48a8cb24694fcc8f970514c9ae",
-    "common-utils/src/main/java/eu/arrowhead/common/sysmonitor/SysMonitorObservations.java": "e01ee081a3644e1daf72c0db1bec322a9474e5a15be5009fd37d2e01322e96ab",
+    "common-utils/src/main/java/eu/arrowhead/common/sysmonitor/SysMonitorObservations.java": "d3580c27fd20af5cd3c2cd0122fa541361b54a716168b786c26b1090b023558b",
     "common-utils/src/main/java/eu/arrowhead/common/sysmonitor/SysMonitorHealth.java": "642d5368366a1025482ecea88ba3ee767418aaa6a5f049411c88e90a056dbfc7",
-    "common-utils/src/main/java/eu/arrowhead/common/sysmonitor/SysMonitorPublisher.java": "33eece0b530d6cb9041565dc05d8586e615c266b5734b7c8ccb8e6ab98147587",
+    "common-utils/src/main/java/eu/arrowhead/common/sysmonitor/SysMonitorPublisher.java": "2b4b73f742ae7cbd666505986e12d86cb5a8eed9a691f0f53d79405a067be471",
     "common-utils/src/main/java/eu/arrowhead/common/log4j2/JDBCConnectionFactoryForLog4J2.java": "a498c666e90bd011460b14c8f6778f80c8a43c20bc9b5652d3a3f5096416da06",
     "common-utils/src/main/java/eu/arrowhead/common/collector/ICollectorDriver.java": "6b4a95275ca492c084b2efdc6cd2f99ba019a94cc04e7aa96448e4450f7d41a4",
     "common-utils/src/main/java/eu/arrowhead/common/collector/HttpCollectorMode.java": "e9a052b490bb5740166740cc77938b434d95265d0f8615b0781c4d03a291f652",
@@ -346,6 +346,8 @@
     "common-utils/src/main/java/eu/arrowhead/common/amqp/model/AmqpInterfaceModel.java": "d1dba6cf48d2f04022623d2be3b07678ee1805f12d15c97c239db1e8b8db4b9d",
     "common-utils/src/main/resources/META-INF/spring.factories": "905e499af61e4948e75ec09c264c36502885d5c6e59d953d7a302388ed40a2f1",
     "common-utils/src/main/java/eu/arrowhead/common/init/Jackson2Defaults.java": "ee229dcae1c40d04d6fd41f2cc98c4d146528ba69a5c8fe39342409bcf90c302",
-    "common-utils/src/main/java/eu/arrowhead/common/init/SecurityProfileGuard.java": "1143058bf934279bf4de785e88a0653087ce7ef5e05e7cb7bae81232d6a8cd51"
+    "common-utils/src/main/java/eu/arrowhead/common/init/SecurityProfileGuard.java": "1143058bf934279bf4de785e88a0653087ce7ef5e05e7cb7bae81232d6a8cd51",
+    "common-utils/src/main/java/eu/arrowhead/common/sysmonitor/SysMonitorReading.java": "2c0401ccf2b2b7d7f21749067fe41720ec303c29e3e3e02560dd22a4be465818",
+    "common-utils/src/main/java/eu/arrowhead/common/sysmonitor/SysMonitorSource.java": "1e04c2345d5097226a67cf95b97c658715c6583946ef0effe63bc80f656131ca"
   }
 }

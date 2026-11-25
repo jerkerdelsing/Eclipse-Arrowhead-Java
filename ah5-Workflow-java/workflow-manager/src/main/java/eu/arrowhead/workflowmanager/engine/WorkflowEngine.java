@@ -68,6 +68,9 @@ import eu.arrowhead.workflowmanager.jpa.repository.WorkItemRepository;
 import eu.arrowhead.workflowmanager.service.ExecutorDirectory;
 import eu.arrowhead.workflowmanager.service.ExecutorDirectory.ExecutorEndpoint;
 import eu.arrowhead.workflowmanager.service.ExecutorGateway;
+import eu.arrowhead.workflowmanager.service.ExecutorObservations;
+import eu.arrowhead.workflowmanager.service.ExecutorObservations.Cause;
+import eu.arrowhead.workflowmanager.service.ExecutorObservations.Outcome;
 import eu.arrowhead.workflowmanager.service.LeaseService;
 import eu.arrowhead.workflowmanager.service.ProductGateway;
 import eu.arrowhead.workflowmanager.service.RecipeService;
@@ -117,6 +120,9 @@ public class WorkflowEngine {
 	private LeaseService leases;
 
 	@Autowired
+	private ExecutorObservations observations;
+
+	@Autowired
 	private WorklogService worklog;
 
 	@Autowired
@@ -152,7 +158,7 @@ public class WorkflowEngine {
 	private final Set<String> probing = ConcurrentHashMap.newKeySet();
 	private volatile long lastLivenessCheck;
 
-	private record Suspicion(boolean reachable, long sinceMillis) {
+	private record Suspicion(Cause cause, long sinceMillis) {
 	}
 
 	/** Outcome of an ERROR: nothing more to do (the session failed), dispatch again now, or dispatch again after a backoff. */
@@ -545,6 +551,7 @@ public class WorkflowEngine {
 		final ZonedDateTime before = Utilities.utcNow().minusSeconds(livenessCheckSeconds);
 		final List<WorkItemRecord> held = items.findAllByStateInOrderByIdAsc(List.of(State.DISPATCHED.name(), State.CLAIMED.name(), State.BOUND.name()));
 		suspicions.keySet().retainAll(held.stream().map(WorkItemRecord::getUid).collect(Collectors.toSet()));
+		observations.held(held);
 		// a work item that changed just now may still be on its way to or from the executor
 		held.stream().filter(i -> i.getExecutorName() != null && i.getUpdatedAt().isBefore(before)).collect(Collectors.groupingBy(WorkItemRecord::getExecutorName))
 				.forEach((executor, its) -> {
@@ -569,9 +576,9 @@ public class WorkflowEngine {
 		final Optional<ExecutorEndpoint> endpoint = directory.byName(executor);
 		if (endpoint.isEmpty()) {
 			if (directory.isComplete()) {
-				held.forEach(i -> suspect(i, false, "executor " + executor + " is no longer registered"));
+				held.forEach(i -> suspect(i, Cause.unregistered, "executor " + executor + " is no longer registered"));
 			} else {
-				held.forEach(i -> suspicions.remove(i.getUid()));
+				held.forEach(i -> clear(i.getUid()));
 			}
 			return;
 		}
@@ -579,33 +586,45 @@ public class WorkflowEngine {
 			final WorkItemRecord item = held.get(n);
 			try {
 				final ExecutionState answer = gateway.status(endpoint.get(), item.getUid());
+				observations.checked(executor, true);
 				if (answer == null || answer.state() == null || Set.of("ACCEPTED", "RUNNING").contains(answer.state())) {
-					suspicions.remove(item.getUid());
+					observations.running(item.getUid());
+					clear(item.getUid());
 				} else {
-					suspect(item, true, "executor " + executor + " does not run it (" + answer.state() + ")");
+					suspect(item, Cause.notRunning, "executor " + executor + " does not run it (" + answer.state() + ")");
 				}
 			} catch (final AuthException | ForbiddenException | InvalidParameterException | DataNotFoundException ex) {
 				logger.warn("{} refused workflowExecution.get-status: {}", executor, ex.getMessage());
-				suspicions.remove(item.getUid());
+				observations.checked(executor, false);
+				clear(item.getUid());
 			} catch (final RuntimeException ex) {
 				// one unanswered question is enough for this round
-				held.subList(n, held.size()).forEach(i -> suspect(i, false, "executor " + executor + " cannot be reached: " + ex.getMessage()));
+				held.subList(n, held.size()).forEach(i -> suspect(i, Cause.unreachable, "executor " + executor + " cannot be reached: " + ex.getMessage()));
 				return;
 			}
 		}
 	}
 
-	private void suspect(final WorkItemRecord item, final boolean reachable, final String reason) {
+	private void clear(final String uid) {
+		suspicions.remove(uid);
+		observations.clear(uid);
+	}
+
+	private void suspect(final WorkItemRecord item, final Cause cause, final String reason) {
 		final long now = System.currentTimeMillis();
-		final Suspicion s = suspicions.compute(item.getUid(), (uid, old) -> old == null || old.reachable() != reachable ? new Suspicion(reachable, now) : old);
-		if (s.sinceMillis() < now && (reachable || now - s.sinceMillis() >= livenessLostAfterSeconds * 1000)) {
+		// an executor that cannot be reached and one that is not registered any more are both away
+		final Suspicion s = suspicions.compute(item.getUid(),
+				(uid, old) -> old == null || (old.cause() == Cause.notRunning) != (cause == Cause.notRunning) ? new Suspicion(cause, now) : new Suspicion(cause, old.sinceMillis()));
+		if (s.sinceMillis() < now && (cause == Cause.notRunning || now - s.sinceMillis() >= livenessLostAfterSeconds * 1000)) {
 			suspicions.remove(item.getUid());
-			lost(item.getId(), reason);
+			lost(item.getId(), cause, reason, s.sinceMillis());
+		} else {
+			observations.suspect(item, cause, s.sinceMillis());
 		}
 	}
 
 	/** The executor will not report any more: a step that is not bound goes to the next executor, a bound one ends with ERROR. */
-	private void lost(final long itemId, final String reason) {
+	private void lost(final long itemId, final Cause cause, final String reason, final long sinceMillis) {
 		final List<Runnable> outbound = new ArrayList<>();
 		final long sessionId = items.findById(itemId).orElseThrow().getSessionId();
 		long next = ERROR_REDRIVE;
@@ -621,7 +640,8 @@ public class WorkflowEngine {
 			final String message = "Lost: " + reason;
 			item.setMessage(message);
 			worklog.log(sessionId, c.recipe().key(), item.getStepName(), "Work item lost", reason);
-			if (item.getState() == State.BOUND) {
+			final boolean bound = item.getState() == State.BOUND;
+			if (bound) {
 				next = error(c, item, c.z().graph().step(item.getStepName()), message);
 			} else {
 				item.setState(State.FAILED); // the equipment is used only after S-Bind, so another executor can take it
@@ -631,6 +651,8 @@ public class WorkflowEngine {
 				afterFailure(c, outbound);
 			}
 			save(c);
+			observations.lost(item, bound, c.recipe().key(), cause, reason, sinceMillis,
+					!bound ? Outcome.nextExecutor : next >= 0 ? Outcome.retry : next == ERROR_REDRIVE ? Outcome.rebind : Outcome.sessionFailed);
 		}
 		outbound.forEach(this::runQuietly);
 		if (next == ERROR_REDRIVE) {
