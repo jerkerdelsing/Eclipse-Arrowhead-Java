@@ -44,7 +44,8 @@ public class SosSecurityConfig {
 				.sessionManagement(management -> management.sessionCreationPolicy(SessionCreationPolicy.NEVER));
 
 		if (sslEnabled) {
-			http.requiresChannel(channel -> channel.requestMatchers(request -> request.getLocalPort() != consolePort).requiresSecure());
+			// Spring Security 7 has no channel security; the HTTPS redirect is limited to the Arrowhead connector instead
+			http.redirectToHttps(https -> https.requestMatchers(request -> request.getLocalPort() != consolePort));
 		}
 
 		return http.build();
