@@ -67,7 +67,7 @@ public class MonitoringServiceTest {
 	//-------------------------------------------------------------------------------------------------
 	@Test
 	public void orchestrationRequestAndProviderSelection() throws Exception {
-		when(http.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of(
+		when(http.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Constants.SYS_NAME_DYNAMIC_SERVICE_ORCHESTRATION), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of(
 				offer("Pump", "TestCloud.sysmonitor.Pump.pump", "CERT_AUTH", List.of("status", "echo", "power")),
 				offer("Valve", "TestCloud.sysmonitor.Valve.valve", "CERT_AUTH", List.of("echo")),
 				offer("Spoof", "TestCloud.sysmonitor.Pump.pump", "CERT_AUTH", List.of("echo")),
@@ -80,7 +80,7 @@ public class MonitoringServiceTest {
 		service.orchestrate();
 
 		final ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
-		verify(http).consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Map.class), payload.capture());
+		verify(http).consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Constants.SYS_NAME_DYNAMIC_SERVICE_ORCHESTRATION), eq(Map.class), payload.capture());
 		assertEquals(map("serviceRequirement", map("serviceDefinition", "sysMonitor", "versions", List.of("1.0.0"), "interfaceTemplateNames", List.of("generic_amqps"),
 				"securityPolicies", List.of("CERT_AUTH")), "orchestrationFlags", map()), payload.getValue());
 		assertEquals(Set.of("Pump", "Valve"), service.getProviders().keySet(), "only own-cloud CERT_AUTH offers under the provider's own routing key");
@@ -101,7 +101,7 @@ public class MonitoringServiceTest {
 	// a provider's own observation types (here WorkflowManager's) are subscribed like echo, power and status
 	@Test
 	public void providerSpecificTypesCanBeSubscribed() throws Exception {
-		when(http.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of(
+		when(http.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Constants.SYS_NAME_DYNAMIC_SERVICE_ORCHESTRATION), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of(
 				offer("WorkflowManager", "TestCloud.sysmonitor.WorkflowManager.WorkflowManager", "CERT_AUTH", List.of("echo", "power", "status", "executorLiveness", "workItemLost")))));
 		when(store.subscriptions()).thenReturn(Map.of("WorkflowManager", map("providerSystem", "WorkflowManager", "observationTypes", List.of("executorLiveness", "workItemLost"), "enabled", true)));
 
@@ -115,7 +115,7 @@ public class MonitoringServiceTest {
 	@Test
 	public void noneDefaultAndDisabledSubscriptionsBindNothing() throws Exception {
 		ReflectionTestUtils.setField(service, "defaultSubscription", "none");
-		when(http.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of(
+		when(http.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Constants.SYS_NAME_DYNAMIC_SERVICE_ORCHESTRATION), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of(
 				offer("Pump", "TestCloud.sysmonitor.Pump.pump", "CERT_AUTH", List.of("echo")),
 				offer("Valve", "TestCloud.sysmonitor.Valve.valve", "CERT_AUTH", List.of("echo")))));
 		when(store.subscriptions()).thenReturn(Map.of("Valve", map("observationTypes", List.of("*"), "enabled", false)));
@@ -126,7 +126,7 @@ public class MonitoringServiceTest {
 	//-------------------------------------------------------------------------------------------------
 	@Test
 	public void emptyOrchestrationIsReported() throws Exception {
-		when(http.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of()));
+		when(http.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Constants.SYS_NAME_DYNAMIC_SERVICE_ORCHESTRATION), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of()));
 		when(store.subscriptions()).thenReturn(Map.of());
 		service.orchestrate();
 		assertEquals("Orchestration returned no authorized sysMonitor provider", service.getOrchestrationError());

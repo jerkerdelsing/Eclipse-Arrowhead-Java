@@ -90,7 +90,9 @@ public class MonitoringService {
 				"versions", List.of(SysMonitorConstants.SERVICE_VERSION),
 				"interfaceTemplateNames", List.of(SysMonitorConstants.INTERFACE_AMQPS),
 				"securityPolicies", List.of(SysMonitorConstants.POLICY_CERT_AUTH));
-		final Map<?, ?> result = httpService.consumeService(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION, Constants.SERVICE_OP_ORCHESTRATION_PULL, Map.class,
+		// named: without a name the first provider in the ServiceRegistry is used, which may be SimpleStoreServiceOrchestration
+		final Map<?, ?> result = httpService.consumeService(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION, Constants.SERVICE_OP_ORCHESTRATION_PULL,
+				Constants.SYS_NAME_DYNAMIC_SERVICE_ORCHESTRATION, Map.class,
 				map("serviceRequirement", requirement, "orchestrationFlags", map()));
 		providers = providers(obj(result));
 		discovered = true;

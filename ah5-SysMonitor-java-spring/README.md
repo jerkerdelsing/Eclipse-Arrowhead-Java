@@ -38,7 +38,7 @@ Service definitions, operations, HTTP paths, AMQP routing keys, the observation 
 | `sysMonitor` (consumed) | AMQP intake | queue `SysMonitor.observations` bound on exchange `arrowhead` to `<cloud>.sysmonitor.<provider>.<instance>.<type>` | orchestrated providers |
 | `sysMonitor` (own) | echo, power, status | routing key `<cloud>.sysmonitor.SysMonitor.SysMonitor.<type>` | — |
 
-The monitored providers are orchestrated every `ORCHESTRATION_INTERVAL_SECONDS` (`sysMonitor`, `generic_amqps`, `CERT_AUTH`). Providers without a subscription follow `SYSMONITOR_DEFAULT_SUBSCRIPTION` (`all` or `none`). Observations are stored before they are acknowledged, deduplicated by `observationId`, published through an outbox (at least once) and pruned after `SYSMONITOR_RETENTION_DAYS` (every `SYSMONITOR_PRUNE_INTERVAL_SECONDS`).
+The monitored providers are orchestrated at DynamicServiceOrchestration every `ORCHESTRATION_INTERVAL_SECONDS` (`sysMonitor`, `generic_amqps`, `CERT_AUTH`). Providers without a subscription follow `SYSMONITOR_DEFAULT_SUBSCRIPTION` (`all` or `none`). Observations are stored before they are acknowledged, deduplicated by `observationId`, published through an outbox (at least once) and pruned after `SYSMONITOR_RETENTION_DAYS` (every `SYSMONITOR_PRUNE_INTERVAL_SECONDS`).
 
 ### Differences from the native implementation
 

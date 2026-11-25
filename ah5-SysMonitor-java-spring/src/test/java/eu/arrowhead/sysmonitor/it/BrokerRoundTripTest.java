@@ -133,7 +133,7 @@ public class BrokerRoundTripTest {
 	//-------------------------------------------------------------------------------------------------
 	@Test
 	public void amqpToStoreToMqtt() throws Exception {
-		when(httpService.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of(
+		when(httpService.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Constants.SYS_NAME_DYNAMIC_SERVICE_ORCHESTRATION), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of(
 				offer("Pump", "TestCloud.sysmonitor.Pump.pump", List.of("echo", "status")),
 				offer("SysMonitor", "TestCloud.sysmonitor.SysMonitor.SysMonitor", List.of("echo", "power", "status")))));
 
