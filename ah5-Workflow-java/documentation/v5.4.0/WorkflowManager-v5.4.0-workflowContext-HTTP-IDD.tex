@@ -1,0 +1,381 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+\newcommand{\fparam}[1]{\textit{\textcolor{ArrowheadBlue}{#1}}}
+%% Special references
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\oref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:operations:#1]{#1}}}}
+\newcommand{\pdef}[1]{{\textcolor{ArrowheadGrey}{#1\label{sec:model:primitives:#1}\label{sec:model:primitives:#1s}}}}
+\newcommand{\pref}[1]{{\textcolor{ArrowheadGrey}{\hyperref[sec:model:primitives:#1]{#1}}}}
+
+\newrobustcmd\osubsection[5]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}operation \textcolor{ArrowheadBlue}{#1}}
+  \subsection*{
+    \thesubsection\quad
+    #2 \textcolor{ArrowheadPurple}{#3} \\
+    \small
+    \hspace*{0.075\textwidth}\begin{minipage}{0.1\textwidth}
+      \vspace*{1mm}
+      Operation: \\
+      \notblank{#4}{Input: \\}{}
+      \notblank{#5}{Output: \\}{}
+    \end{minipage}
+    \begin{minipage}{0.825\textwidth}
+      \vspace*{1mm}
+      \textcolor{ArrowheadBlue}{#1} \\
+      \notblank{#4}{\mref{#4} \\}{}
+      \notblank{#5}{\mref{#5} \\}{}
+    \end{minipage}
+  }
+  \label{sec:operations:#1}
+}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2} \label{sec:model:#2s}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{workflowContext HTTP/TLS/JSON}
+\ArrowheadServiceID{workflowContext}
+\ArrowheadType{Interface Design Description}
+\ArrowheadTypeShort{IDD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-23}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  \Large{Service ID: \textit{``\arrowid''}}
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the HTTP/TLS/JSON interface of the \texttt{workflow\allowbreak{}Context} service of the Eclipse Arrowhead workflow support systems, service version 1.0.0, documentation edition 5.4.0. It realises the abstract operations of the \texttt{workflow\allowbreak{}Context} SD.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+This document describes how the \texttt{workflow\allowbreak{}Context} service, which gives executors the session parameters and the results their step may read, and stores step results, is realised with HTTP~\cite{rfc9110}
+over TLS~\cite{rfc8446} and JSON~\cite{rfc8259} payloads. Request and response bodies use content type
+\texttt{application/\allowbreak{}json}; JSON field names are case-sensitive and fields not listed in this document must not be sent
+(the recipe decoder rejects unknown fields). Optional fields may be omitted; absent and \texttt{null} are equivalent.
+
+The service is offered by the WorkflowManager on its Arrowhead connector (default port 8482) with base path \texttt{/\allowbreak{}workflowmanager/\allowbreak{}context}.
+The ServiceRegistry entry lists every operation with its HTTP method and path relative to the base path.
+
+The rest of this document is organized as follows. Section~\ref{sec:operations} specifies each operation,
+Section~\ref{sec:model} the JSON data models, Section~\ref{sec:security} the security requirements,
+Section~\ref{sec:errors} the error representation and Section~\ref{sec:implementations} the implementations.
+
+\newpage
+\section{Service Operations}
+\label{sec:operations}
+
+{\small
+\begin{longtable}{|p{3.0cm}|p{1.5cm}|p{5.3cm}|p{3.0cm}|p{3.0cm}|}
+
+\hline
+\rowcolor{gray!33} Operation & Method & Path & Input & Output \\ \hline
+\endhead
+\oref{get-parameters} & GET & \texttt{/\allowbreak{}workflowmanager/\allowbreak{}context/\allowbreak{}parameters/\allowbreak{}\{workItemId\}} & \mref{WorkItemRef} & \mref{Parameters} \\ \hline
+\oref{get-results} & GET & \texttt{/\allowbreak{}workflowmanager/\allowbreak{}context/\allowbreak{}results/\allowbreak{}\{workItemId\}} & \mref{WorkItemRef} & \mref{StepResults} \\ \hline
+\oref{put-result} & POST & \texttt{/\allowbreak{}workflowmanager/\allowbreak{}context/\allowbreak{}result} & \mref{PutResultRequest} & -- \\ \hline
+\end{longtable}
+}
+
+\osubsection{get-parameters}{GET}{/workflowmanager/context/parameters/\{workItemId\}}{WorkItemRef}{Parameters}
+Returns $\rho$ of the work item's session.
+
+{\small
+\begin{longtable}{|p{3.0cm}|p{1.4cm}|p{3.2cm}|p{8.2cm}|}
+
+\hline
+\rowcolor{gray!33} Parameter & In & Type & Description \\ \hline
+\endhead
+\fparam{workItemId} & path & \pref{WorkItemId} & Held work item. \\ \hline
+\end{longtable}
+}
+
+
+{\small
+\begin{longtable}{|p{2.0cm}|p{13.8cm}|}
+
+\hline
+\rowcolor{gray!33} Status & When \\ \hline
+\endhead
+Success & 200 OK. \\ \hline
+403 & The work item is held by another executor. \\ \hline
+404 & The referenced object does not exist (\texttt{DATA\_\allowbreak{}NOT\_\allowbreak{}FOUND}). \\ \hline
+409 & The work item is no longer active. \\ \hline
+401 & No valid identity token, or the token is bound to another certificate (\texttt{AUTH}). \\ \hline
+403 & The consumer has no ConsumerAuthorization grant for this operation (\texttt{FORBIDDEN}). \\ \hline
+\end{longtable}
+}
+
+
+\begin{lstlisting}[caption={Example response body}]
+{ "threshold": 23 }
+\end{lstlisting}
+
+\osubsection{get-results}{GET}{/workflowmanager/context/results/\{workItemId\}}{WorkItemRef}{StepResults}
+Returns $\xi|dep(s)$ for the work item's step.
+
+{\small
+\begin{longtable}{|p{3.0cm}|p{1.4cm}|p{3.2cm}|p{8.2cm}|}
+
+\hline
+\rowcolor{gray!33} Parameter & In & Type & Description \\ \hline
+\endhead
+\fparam{workItemId} & path & \pref{WorkItemId} & Held work item. \\ \hline
+\end{longtable}
+}
+
+
+{\small
+\begin{longtable}{|p{2.0cm}|p{13.8cm}|}
+
+\hline
+\rowcolor{gray!33} Status & When \\ \hline
+\endhead
+Success & 200 OK. \\ \hline
+403 & The work item is held by another executor. \\ \hline
+404 & The referenced object does not exist (\texttt{DATA\_\allowbreak{}NOT\_\allowbreak{}FOUND}). \\ \hline
+409 & A result in dep(s) is missing, or the work item is no longer active. \\ \hline
+401 & No valid identity token, or the token is bound to another certificate (\texttt{AUTH}). \\ \hline
+403 & The consumer has no ConsumerAuthorization grant for this operation (\texttt{FORBIDDEN}). \\ \hline
+\end{longtable}
+}
+
+
+\begin{lstlisting}[caption={Example response body}]
+{ "read": { "temperature": 21.5 } }
+\end{lstlisting}
+
+\osubsection{put-result}{POST}{/workflowmanager/context/result}{PutResultRequest}{}
+Stores $\xi(s)$ for the work item's step.
+
+{\small
+\begin{longtable}{|p{2.0cm}|p{13.8cm}|}
+
+\hline
+\rowcolor{gray!33} Status & When \\ \hline
+\endhead
+Success & 200 OK, empty body. \\ \hline
+400 & Missing request. \\ \hline
+403 & The work item is held by another executor. \\ \hline
+404 & The referenced object does not exist (\texttt{DATA\_\allowbreak{}NOT\_\allowbreak{}FOUND}). \\ \hline
+409 & The work item is no longer active. \\ \hline
+401 & No valid identity token, or the token is bound to another certificate (\texttt{AUTH}). \\ \hline
+403 & The consumer has no ConsumerAuthorization grant for this operation (\texttt{FORBIDDEN}). \\ \hline
+\end{longtable}
+}
+
+
+\begin{lstlisting}[caption={Example request body}]
+{ "workItemId": "5d2c0b1e-...", "result": { "heat": true } }
+\end{lstlisting}
+
+
+\newpage
+\section{Data Models}
+\label{sec:model}
+The JSON objects exchanged by the operations, in alphabetic order. Field types refer to other data models or to the
+primitives of Section~\ref{sec:model:primitives}.
+
+\msubsection{struct}{ErrorMessage}
+Error response of every operation (common library \texttt{Error\allowbreak{}MessageDTO}).
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{errorMessage} & \pref{String} & yes & Explanation. \\ \hline
+\texttt{errorCode} & \pref{Integer} & yes & HTTP status code. \\ \hline
+\texttt{exceptionType} & \pref{String} & yes & \texttt{INVALID\_\allowbreak{}PARAMETER}, \texttt{AUTH}, \texttt{FORBIDDEN}, \texttt{DATA\_\allowbreak{}NOT\_\allowbreak{}FOUND}, \texttt{EXTERNAL\_\allowbreak{}SERVER\_\allowbreak{}ERROR}, \ldots \\ \hline
+\texttt{origin} & \pref{String} & no & The operation that failed, e.g. \texttt{POST /\allowbreak{}workflowmanager/\allowbreak{}work-\allowbreak{}item/\allowbreak{}report}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{alias}{Parameters}
+The session parameters $\rho$.
+ It is an alias of \pref{JsonObject}.
+\msubsection{struct}{PutResultRequest}
+Stores $\xi(s)$ for a held work item.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{workItemId} & \pref{WorkItemId} & yes & The work item. \\ \hline
+\texttt{result} & \pref{JsonValue} & yes & The step's result. \\ \hline
+\end{longtable}
+}
+
+\msubsection{alias}{StepResults}
+$\xi|dep(s)$: the stored results of the steps in $dep(s)$, by step name.
+ It is an alias of \pref{Map}$<$\pref{Name}, \pref{JsonValue}$>$.
+\msubsection{struct}{WorkItemRef}
+Identifies a work item.
+
+{\small
+\begin{longtable}{|p{3.7cm}|p{4.2cm}|p{1.6cm}|p{6.3cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
+\endhead
+\texttt{workItemId} & \pref{WorkItemId} & yes & The work item. \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Primitives}
+\label{sec:model:primitives}
+The abstract primitive types of the SD are represented in JSON~\cite{rfc8259} as follows.
+\subsubsection*{alias \pdef{Integer}}
+JSON number without fraction.
+
+\subsubsection*{alias \pdef{JsonObject}}
+JSON object.
+
+\subsubsection*{alias \pdef{JsonValue}}
+Any JSON value~\cite{rfc8259}.
+
+\subsubsection*{alias \pdef{Map}}
+JSON object whose member names are the keys.
+
+\subsubsection*{alias \pdef{Name}}
+JSON string matching \texttt{\^{}[A-Za-z][A-Za-z0-9\_-]\{0,62\}\$}.
+
+\subsubsection*{alias \pdef{String}}
+JSON string (UTF-8).
+
+\subsubsection*{alias \pdef{WorkItemId}}
+JSON string holding a UUID; a path segment when used in a path.
+
+
+
+\section{Security}
+\label{sec:security}
+The interface is offered only over TLS~\cite{rfc8446} (TLS 1.3 or 1.2) with mutual authentication: the consumer must
+present an Arrowhead certificate issued under the local cloud's certificate authority, and certificates on the
+cloud's CRL are refused. The service is registered with interface template \texttt{generic\_\allowbreak{}https} and interface
+policy \texttt{CERT\_AUTH}.
+
+Every request must carry the consumer's identity token, obtained from the Authentication system and bound to the
+consumer's certificate:
+\begin{lstlisting}
+Authorization: Bearer IDENTITY-TOKEN//<identity token>
+\end{lstlisting}
+A token issued to another system's certificate is refused (401). The provider then checks a ConsumerAuthorization
+grant for the operation (\texttt{authorization.\allowbreak{}verify}, \texttt{service.\allowbreak{}authorization.\allowbreak{}enabled=\allowbreak{}true}); a missing grant is
+refused with 403. Each operation is authorized separately; the holder check is made in addition.
+
+
+\section{Errors}
+\label{sec:errors}
+Every error response carries an \mref{ErrorMessage} body with content type \texttt{application/\allowbreak{}json}, for example:
+\begin{lstlisting}
+{ "errorMessage": "Work item 5d2c0b1e-... is held by another executor",
+  "errorCode": 403, "exceptionType": "FORBIDDEN",
+  "origin": "POST /workflowmanager/work-item/report" }
+\end{lstlisting}
+Status codes follow HTTP semantics~\cite{rfc9110}: 400 invalid parameter, 401 authentication, 403 forbidden, 404 not
+found, 409 conflict with the current state, 500 internal error and 503 failure of an external system.
+
+
+\section{Implementations}
+\label{sec:implementations}
+\begin{itemize}
+\item \textbf{Java (reference).} \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}java/\allowbreak{}ah5-\allowbreak{}Workflow-\allowbreak{}java}, module \texttt{workflow-\allowbreak{}manager}. Paths, methods and service
+operations are defined once in \texttt{workflow-\allowbreak{}model} (\texttt{wire/\allowbreak{}Workflow\allowbreak{}Services.\allowbreak{}java}, \texttt{wire/\allowbreak{}Service\allowbreak{}Operations.\allowbreak{}java}) and checked by the provider-side authorization filter.
+\item \textbf{Go.} Not implemented: \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}go} has no workflow systems. A Go implementation must
+provide exactly the paths, methods, JSON field names and status codes of this IDD to be interoperable.
+\item \textbf{Rust.} Not implemented: \texttt{Eclipse-\allowbreak{}Arrowhead-\allowbreak{}rust} has no workflow systems. The same requirement applies.
+\end{itemize}
+Until the Go and Rust implementations exist, the workflow systems are \emph{not} interoperable across the three
+implementations; only the Java systems interoperate with Java, Go and Rust core systems through the common Arrowhead
+interfaces (ServiceRegistry, Authentication, ConsumerAuthorization, DynamicServiceOrchestration).
+
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-23 & \arrowversion & Initial edition: interface design description of workflowContext over HTTP/TLS/JSON, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}

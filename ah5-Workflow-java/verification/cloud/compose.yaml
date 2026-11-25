@@ -1,0 +1,136 @@
+# Cloud test of the WorkflowManager and WorkflowExecutors in the running Java test cloud (secure profile: mutual TLS,
+# identity tokens, ServiceRegistry, DynamicServiceOrchestration, ConsumerAuthorization). Prepare with setup.sh, run
+# with run-cloud-test.sh, undo with teardown.sh. Own compose project; it joins the cloud network but changes no cloud
+# container.
+name: wf-cloud
+x-java: &java
+  image: eclipse-temurin:21-jre
+  working_dir: /app
+  # a JVM with -Xmx200-256m plus TLS and Netty buffers needs more than 512 MiB RSS (OOM-killed in the first run)
+  mem_limit: 768m
+  restart: "no"
+x-env: &env
+  LOCAL_CLOUD: TestCloud
+  ORGANIZATION: Company
+  SERVICE_REGISTRY_ADDRESS: serviceregistry
+  SERVICE_REGISTRY_PORT: "8443"
+  ARROWHEAD_SSL_CRL_FILE: /crl/ca.crl
+x-wfe: &wfe
+  <<: *java
+  depends_on: { workflowmanager: { condition: service_started } }
+  command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.config.additional-location=file:/app/config/application.properties"]
+services:
+  workflowmanager:
+    <<: *java
+    mem_limit: 1g
+    networks: { arrowhead: { aliases: [workflowmanager] } }
+    ports: ["127.0.0.1:18482:8482"]
+    environment:
+      <<: *env
+      DOMAIN_NAME: workflowmanager
+    secrets:
+      - { source: wfm-store, target: ah.store-password }
+      - { source: wfm-identity, target: ah.identity-password }
+      - { source: db-user, target: ah.db-password }
+    volumes:
+      - ../../workflow-manager/target/arrowhead-workflowmanager-5.4.0.jar:/app/app.jar:ro
+      - ../../deployment/workflowmanager.properties:/app/config/application.properties:ro
+      - ./.state/systems/WorkflowManager:/certs:ro
+      - wfm-data:/data
+      - ${CLOUD_DIR:?run through run-cloud-test.sh}/security/crl:/crl:ro
+    command: ["java", "-Xmx256m", "-jar", "/app/app.jar", "--spring.config.additional-location=file:/app/config/application.properties",
+      "--workflow.pull.claim-timeout=30", "--workflow.executor.discovery.cache-seconds=5"]
+  wfe-agv:
+    <<: *wfe
+    networks: { arrowhead: { aliases: [wfe-agv] } }
+    environment: { <<: *env, SYSTEM_NAME: WfeAgv, DOMAIN_NAME: wfe-agv, WFE_CAPABILITIES: agv }
+    secrets: [{ source: wfeagv-store, target: ah.store-password }, { source: wfeagv-identity, target: ah.identity-password }]
+    volumes:
+      - ../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro
+      - ../../deployment/workflowexecutor.properties:/app/config/application.properties:ro
+      - ./.state/systems/WfeAgv:/certs:ro
+      - ${CLOUD_DIR:?run through run-cloud-test.sh}/security/crl:/crl:ro
+  wfe-a:
+    <<: *wfe
+    networks: { arrowhead: { aliases: [wfe-a] } }
+    environment: { <<: *env, SYSTEM_NAME: WfeA, DOMAIN_NAME: wfe-a }
+    secrets: [{ source: wfea-store, target: ah.store-password }, { source: wfea-identity, target: ah.identity-password }]
+    volumes:
+      - ../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro
+      - ../../deployment/workflowexecutor.properties:/app/config/application.properties:ro
+      - ./.state/systems/WfeA:/certs:ro
+      - ${CLOUD_DIR:?run through run-cloud-test.sh}/security/crl:/crl:ro
+  wfe-pull:
+    <<: *wfe
+    networks: { arrowhead: { aliases: [wfe-pull] } }
+    environment: { <<: *env, SYSTEM_NAME: WfePull, DOMAIN_NAME: wfe-pull, WFE_MODE: pull }
+    secrets: [{ source: wfepull-store, target: ah.store-password }, { source: wfepull-identity, target: ah.identity-password }]
+    volumes:
+      - ../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro
+      - ../../deployment/workflowexecutor.properties:/app/config/application.properties:ro
+      - ./.state/systems/WfePull:/certs:ro
+      - ${CLOUD_DIR:?run through run-cloud-test.sh}/security/crl:/crl:ro
+    command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.config.additional-location=file:/app/config/application.properties",
+      "--workflow.executor.poll-ms=300"]
+  wfe-chor:
+    <<: *wfe
+    networks: { arrowhead: { aliases: [wfe-chor] } }
+    # the services in kebab-case, as recipes name them; the Choreographer asks in camelCase (temperatureRead)
+    environment: { <<: *env, SYSTEM_NAME: WfeChor, DOMAIN_NAME: wfe-chor, WFE_CHOREOGRAPHER: "true",
+                   WFE_SERVICES: "temperature-read,temperature-evaluate,heating-switch" }
+    secrets: [{ source: wfechor-store, target: ah.store-password }, { source: wfechor-identity, target: ah.identity-password }]
+    volumes:
+      - ../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro
+      - ../../deployment/workflowexecutor.properties:/app/config/application.properties:ro
+      - ./.state/systems/WfeChor:/certs:ro
+      - ${CLOUD_DIR:?run through run-cloud-test.sh}/security/crl:/crl:ro
+  workflowconfigurator:
+    <<: *java
+    depends_on: { workflowmanager: { condition: service_started } }
+    networks: { arrowhead: { aliases: [workflowconfigurator] } }
+    # the browser console, published on the host's loopback only
+    ports: ["127.0.0.1:18485:8485"]
+    environment: { <<: *env, DOMAIN_NAME: workflowconfigurator }
+    secrets:
+      - { source: wfc-store, target: ah.store-password }
+      - { source: wfc-identity, target: ah.identity-password }
+      - { source: wfc-console, target: ah.console-password-hash }
+    volumes:
+      - ../../workflow-configurator/target/arrowhead-workflowconfigurator-5.4.0.jar:/app/app.jar:ro
+      - ../../deployment/workflowconfigurator.properties:/app/config/application.properties:ro
+      - ./.state/systems/WorkflowConfigurator:/certs:ro
+      - ${CLOUD_DIR:?run through run-cloud-test.sh}/security/crl:/crl:ro
+    command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.config.additional-location=file:/app/config/application.properties"]
+  wf-equipment:
+    image: python:3.13-alpine
+    networks: { arrowhead: { aliases: [wf-equipment] } }
+    ports: ["127.0.0.1:19000:9000"]
+    environment:
+      EQUIPMENT_SERVICES: ${EQUIPMENT_SERVICES:?run through run-cloud-test.sh}
+      SERVICE_REGISTRY_URL: https://serviceregistry:8443
+      AUTHENTICATION_URL: https://authentication:8444
+    secrets: [{ source: equipment-identity, target: ah.identity-password }]
+    volumes:
+      - ./equipment.py:/eq/equipment.py:ro
+      - ./.state/systems/WfEquipment:/certs:ro
+    command: ["python", "-I", "/eq/equipment.py"]
+networks:
+  arrowhead: { external: true, name: arrowhead-v53-test-cloud-network }
+secrets:
+  db-user: { file: ./.state/db-password }
+  wfm-store: { file: ./.state/systems/WorkflowManager/store-password }
+  wfm-identity: { file: ./.state/systems/WorkflowManager/identity-password }
+  wfeagv-store: { file: ./.state/systems/WfeAgv/store-password }
+  wfeagv-identity: { file: ./.state/systems/WfeAgv/identity-password }
+  wfea-store: { file: ./.state/systems/WfeA/store-password }
+  wfea-identity: { file: ./.state/systems/WfeA/identity-password }
+  wfepull-store: { file: ./.state/systems/WfePull/store-password }
+  wfepull-identity: { file: ./.state/systems/WfePull/identity-password }
+  wfechor-store: { file: ./.state/systems/WfeChor/store-password }
+  wfechor-identity: { file: ./.state/systems/WfeChor/identity-password }
+  wfc-store: { file: ./.state/systems/WorkflowConfigurator/store-password }
+  wfc-identity: { file: ./.state/systems/WorkflowConfigurator/identity-password }
+  wfc-console: { file: ./.state/systems/WorkflowConfigurator/console-password-hash }
+  equipment-identity: { file: ./.state/systems/WfEquipment/identity-password }
+volumes:
+  wfm-data: {}

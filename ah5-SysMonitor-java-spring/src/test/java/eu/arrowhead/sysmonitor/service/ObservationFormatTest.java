@@ -51,6 +51,16 @@ public class ObservationFormatTest {
 
 	//-------------------------------------------------------------------------------------------------
 	@Test
+	public void providerSpecificTypesPassWithTheirTopic() {
+		final Map<String, Object> normalized = ObservationFormat.normalize(map("observationId", "WorkflowManager-workItemLost-1", "observationType", "workItemLost", "providerSystem", "WorkflowManager",
+				"serviceInstance", "WorkflowManager", "sourceTime", "2026-11-25T08:18:15.705Z", "value", map("executor", "WfeA", "equipmentMayBeInUse", true), "quality", "uncertain"),
+				"TestCloud.sysmonitor.WorkflowManager.WorkflowManager.workItemLost", "TestCloud");
+		assertEquals("uncertain", normalized.get("quality"));
+		assertEquals("arrowhead/TestCloud/sysmonitor/data/workItemLost/WorkflowManager", ObservationFormat.topic("arrowhead/TestCloud/sysmonitor/data", normalized));
+	}
+
+	//-------------------------------------------------------------------------------------------------
+	@Test
 	public void envelopeKeepsFieldsOrderAndDefaults() {
 		final Map<String, Object> normalized = ObservationFormat.normalize(map("sourceTime", "2026-10-15T12:00:00Z", "value", map("status", "alive")), ROUTING, "TestCloud");
 		assertEquals(List.of("schemaVersion", "observationId", "providerSystem", "serviceInstance", "observationType", "sourceTime", "receivedTime", "publishedTime",

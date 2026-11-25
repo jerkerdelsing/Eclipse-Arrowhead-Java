@@ -1,0 +1,315 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+%% Special references
+\newcommand{\fref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:functions:#1]{#1}}}}
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\sref}[1]{{\textcolor{ArrowheadPurple}{#1}}}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{Arrowhead Workflow SoS}
+
+\ArrowheadType{System of Systems Description (black box)}
+\ArrowheadTypeShort{SoSD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-24}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the Arrowhead Workflow System of Systems as a black box: the workflow capability it adds to an Eclipse Arrowhead local cloud, how it is meant to be used, its properties and delimitations, and the services at its boundary. The white-box design is given in the SoSDD. Documentation edition 5.4.0.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+Eclipse Arrowhead binds services at run time, but it cannot state the \emph{order and conditions} of service exchanges.
+Putting that logic in each consumer breaks loose coupling; leaving it to a central MES brings back a bottleneck and a
+single point of failure~\cite{represa2022,derhamy2018}. The Workflow SoS closes this gap. Seen from outside, it lets an
+engineer \emph{design} a workflow over the microservices of a local cloud, lets products and controllers \emph{run} it
+for a subject, and makes every run \emph{traceable} against a formal execution model~\cite{varga2026}, while service
+binding, authorization and QoS stay with the Arrowhead core systems.
+
+\begin{figure}[ht!]
+  \centering
+  \resizebox{\textwidth}{!}{
+\begin{tikzpicture}
+\node[draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!5,rounded corners=4pt,minimum width=6.4cm,minimum height=6.0cm] (sos) at (0,0) {};
+\node[font=\bfseries,ArrowheadBlue,align=center] at (0,2.4) {Workflow SoS\\[-1pt]{\scriptsize\normalfont $\ll$black box$\gg$}};
+\node[font=\scriptsize,align=center,text width=5.6cm] at (0,1.2) {design, store, validate and run workflows of service exchanges in one local cloud};
+\node[ahsrv,anchor=east] (s1) at (3.2,0.0) {workflowConfiguration};
+\node[ahsrv,anchor=east] (s2) at (3.2,-0.8) {workflowRecipe};
+\node[ahsrv,anchor=east] (s3) at (3.2,-1.6) {workflowInstance};
+\node[ahsrv,anchor=east] (s4) at (3.2,-2.4) {workflowManagement};
+\node[ahext] (eng) at (7.4,0.0) {Engineer / tool\\[-1pt]{\scriptsize browser console}};
+\node[ahext] (prod) at (7.4,-1.6) {Product, line controller,\\ upper WorkflowManager};
+\node[ahext] (op) at (7.4,-3.1) {Sysop};
+\draw[ahflow] (eng.west) -- (s1.east);
+\draw[ahflow] (eng.south west) -- (s2.east);
+\draw[ahflow] (prod.west) -- (s3.east);
+\draw[ahflow] (op.west) -- (s4.east);
+\node[ahext,minimum width=4.2cm] (core) at (-8.1,2.2) {Core systems\\[-1pt]{\scriptsize ServiceRegistry, Authentication,}\\[-3pt]{\scriptsize ConsumerAuthorization, DSO}};
+\node[ahext,minimum width=4.2cm] (cfg) at (-8.1,0.6) {LocalCloudConfigurator,\\ SoLocalCloudConfigurator};
+\node[ahext,minimum width=4.2cm] (eq) at (-8.1,-1.0) {Equipment / application\\ systems (step services)};
+\node[ahext,minimum width=4.2cm] (pr) at (-8.1,-2.6) {Intelligent Product\\[-1pt]{\scriptsize workflowProduct}};
+\draw[ahflow] (sos.west |- core) -- (core.east) node[midway,above,font=\scriptsize,align=center] {discovery, identity,\\ authorization, orchestration};
+\draw[ahflow] (sos.west |- cfg) -- (cfg.east) node[midway,above,font=\scriptsize] {designs};
+\draw[ahflow] (sos.west |- eq) -- (eq.east) node[midway,above,font=\scriptsize] {invoke};
+\draw[ahflow] (sos.west |- pr) -- (pr.east) node[midway,above,font=\scriptsize] {recipe, results};
+\node[ahext] (ch) at (0,-4.6) {Choreographer\\[-1pt]{\scriptsize (compatibility)}};
+\draw[ahflow,<->] (sos.south) -- (ch.north) node[midway,right,font=\scriptsize,align=left] {executor interface,\\ compiled plans};
+\end{tikzpicture}
+  }
+  \caption{The Workflow SoS as a black box: services at its boundary (right) and the systems it relies on (left and below).}
+  \label{fig:blackbox}
+\end{figure}
+
+The rest of this document is organized as follows. Section~\ref{sec:prior_art} references prior art,
+Section~\ref{sec:use} the intended use, Section~\ref{sec:properties} the properties, Section~\ref{sec:delimitations}
+the delimitations, Section~\ref{sec:services} the services at the boundary and Section~\ref{sec:security} security.
+
+\newpage
+\subsection{Significant Prior Art}
+\label{sec:prior_art}
+\begin{itemize}
+\item Derhamy~\cite{derhamy2018,derhamy2018workflow}: the split into Intelligent Product, Workflow Manager and Workflow
+Executor; the Workflow Manager as a cloneable blackboard per work centre; the product as final arbiter; the design
+principles loose coupling, searchable, run-time binding, autonomy, specialisation, data at its source and first-person
+perspective.
+\item Garcia Represa~\cite{represa2022}: the ordering gap in microservice SoS; workflow management as a separate system;
+coexistence of orchestration-style and choreography-style workflow management; workflows are selected, implemented
+and executed.
+\item Varga~\cite{varga2026}: the formal recipe $W$, its well-formedness (W1)--(W4), the session state and transition
+rules, and the guarantees Theorem~1 (at most $3|S| + 2|A|$ transitions), Theorem~2 (progress) and Proposition~1
+(exclusive tool use).
+\item The Arrowhead Choreographer (4.6 to 5.4): plans, sessions and the executor contract, with which the SoS
+coexists~\cite{delsing2017}.
+\end{itemize}
+
+\subsection{How This SoS Is Meant to Be Used}
+\label{sec:use}
+\begin{enumerate}
+\item \textbf{Design.} An engineer opens the WorkflowConfigurator console, picks a configured local cloud, draws a
+workflow with conditions between its microservices, validates it and stores it.
+\item \textbf{Orchestrated run (push).} A line controller starts a session; the SoS selects an executor for each
+enabled step, which has the provider orchestrated and invokes it.
+\item \textbf{Blackboard run (pull).} Workstation executors claim the steps they can do; suitable for plug-and-produce
+stations and intermittent links.
+\item \textbf{Product-driven run.} A product arriving at a workstation hands over its recipe fragment and receives the
+results when the session closes.
+\item \textbf{Shared tools.} Several lines share a tool under expiring leases, so a failed line does not block the others.
+\item \textbf{Legacy plans.} Recipes compile to Choreographer plans, and executors serve the Choreographer's executor
+interface, so existing Choreographer installations keep working.
+\end{enumerate}
+
+\subsection{SoS functionalities and properties}
+\label{sec:properties}
+\subsubsection{Functional properties of the SoS}
+\begin{itemize}
+\item Workflow design over the services of the live cloud, LocalCloudConfigurator designs and SoLC member clouds.
+\item Recipe validation with 30 coded checks and a verdict (ACCEPT, REVISE, CLARIFY, REJECT); immutable versioned storage.
+\item Execution with the eight transition rules of the formal model, push and pull dispatch, guarded transitions,
+retries, timeouts, aborts and leases; full traces.
+\item Coexistence with the Choreographer in both directions.
+\end{itemize}
+\subsubsection{Configuration of SoS properties}
+Per deployment: the workstation identifier of the WorkflowManager, the capabilities, services, workstation and mode of
+each executor, the dispatch default, timeouts and lease durations, and the ConsumerAuthorization grants between the
+systems and towards the equipment services. Per workflow: the recipe.
+\subsubsection{Data stored by the individual microsystems}
+
+{\small
+\begin{longtable}{|p{4.0cm}|p{11.8cm}|}
+
+\hline
+\rowcolor{gray!33} System & Data \\ \hline
+\endhead
+WorkflowManager & Recipes (immutable), sessions (state $z$ and trace), work items, leases, worklog: database \texttt{ah\_workflow}, embedded in the WorkflowManager and reachable only through its services. \\ \hline
+WorkflowExecutor & No workflow data; work items in progress in memory. \\ \hline
+WorkflowConfigurator & No workflow data; console sessions in memory. \\ \hline
+\end{longtable}
+}
+
+\subsubsection{Non functional properties}
+\begin{itemize}
+\item \emph{Security:} mutual TLS, identity tokens bound to certificates, ConsumerAuthorization on every operation,
+object-level checks (Section~\ref{sec:security}).
+\item \emph{Safety and predictability:} for well-formed recipes without extensions, bounded and progressing runs
+(Theorems~1--2); failure is absorbing; every run is checked against the model.
+\item \emph{Loose coupling:} recipes name service definitions and capabilities, never endpoints; providers are bound
+per step and per session, so new equipment is used without changing the workflow (plug-and-produce).
+\item \emph{Autonomy:} a workstation cloud with its core systems, one WorkflowManager, its executors and equipment can
+run without a factory connection.
+\end{itemize}
+\subsubsection{Stateful or stateless}
+Stateful in the WorkflowManager (recipes and sessions survive restarts); executors and the configurator are stateless.
+
+\subsection{Important Delimitations}
+\label{sec:delimitations}
+\begin{itemize}
+\item One local cloud: federation of WorkflowManagers across clouds and the disconnected working copy are designed but
+not implemented.
+\item No planning, scheduling or supply-chain functions; no equipment services.
+\item EventHandler-based (\texttt{event}) dispatch and workflow events are not implemented.
+\item Equipment adapters for HTTP/HTTPS JSON only.
+\item Extensions (rebind, retry, timeout, abort, guards, compensation) are outside the proven model; sessions using them are
+flagged.
+\item Java only: the Go and Rust implementations do not exist, so the SoS is not yet interoperable across the three
+implementations.
+\end{itemize}
+
+\newpage
+\section{Services}
+\label{sec:services}
+Only the services below cross the boundary of the SoS. The services between its constituent systems
+(\texttt{workflow\allowbreak{}Execution}, \texttt{workflow\allowbreak{}Work\allowbreak{}Item}, \texttt{workflow\allowbreak{}Context}, \texttt{workflowLease}) are internal and
+described in the SoSDD, although they are ordinary Arrowhead services that other systems could use.
+
+\subsection{Produced services}
+
+{\small
+\begin{longtable}{|p{4.6cm}|p{3.6cm}|p{7.6cm}|}
+
+\hline
+\rowcolor{gray!33} Service & Provider & Consumers and purpose \\ \hline
+\endhead
+\texttt{workflow\allowbreak{}Configuration} & WorkflowConfigurator & Engineers and engineering tools: clouds, services, executors; validate and store workflows. \\ \hline
+\texttt{workflow\allowbreak{}Recipe} & WorkflowManager & Engineering tools, upper WorkflowManagers: recipe catalogue, compile to Choreographer plans. \\ \hline
+\texttt{workflow\allowbreak{}Instance} & WorkflowManager & Products, line controllers, upper WorkflowManagers: start, observe and abort sessions. \\ \hline
+\texttt{workflow\allowbreak{}Management} & WorkflowManager & Sysop: worklog, executors, work items. \\ \hline
+\texttt{general\allowbreak{}Management} & all three & Sysop: logs and configuration. \\ \hline
+Choreographer executor interface & WorkflowExecutor & The Choreographer (compatibility, not registered). \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Consumed services}
+
+{\small
+\begin{longtable}{|p{5.6cm}|p{4.2cm}|p{6.0cm}|}
+
+\hline
+\rowcolor{gray!33} Service & Provider & Purpose \\ \hline
+\endhead
+\texttt{service\allowbreak{}Discovery}, \texttt{service\allowbreak{}Registry\allowbreak{}Management} & ServiceRegistry & Registration, executor discovery, cloud listing. \\ \hline
+\texttt{identity} & Authentication & Identity tokens of the systems. \\ \hline
+\texttt{authorization} & ConsumerAuthorization & Provider-side checks of every operation. \\ \hline
+\texttt{service\allowbreak{}Orchestration} & Dynamic\allowbreak{}Service\allowbreak{}Orchestration & Provider of each step, with the executor as requester. \\ \hline
+step services & Equipment and application systems & The work of each step. \\ \hline
+\texttt{workflow\allowbreak{}Product} & Intelligent Product & Recipe retrieval and result storage. \\ \hline
+\texttt{local\allowbreak{}Cloud\allowbreak{}Configuration}, \texttt{so\allowbreak{}Local\allowbreak{}Cloud\allowbreak{}Configuration} & LocalCloudConfigurator, SoLocalCloudConfigurator & Designed clouds for the editor. \\ \hline
+\texttt{choreographer\allowbreak{}Executor} & Choreographer & Registration and step notification (compatibility). \\ \hline
+\end{longtable}
+}
+
+
+\newpage
+\section{Security}
+\label{sec:security}
+\begin{itemize}
+\item The SoS runs only in Arrowhead secure mode in a cloud: every system has a certificate of the local cloud CA, all
+traffic uses TLS with client authentication, and every request carries an identity token bound to the caller's
+certificate.
+\item Non-compliant certificates and certificates on the CRL are refused.
+\end{itemize}
+\subsection{Security model}
+\begin{itemize}
+\item \textbf{Protocol:} HTTPS (TLS 1.3/1.2) with JSON; interface policy \texttt{CERT\_AUTH}.
+\item \textbf{Data protection:} TLS on all links; each system's database is embedded in its own process, so no database link or port exists; secrets from container secrets.
+\item \textbf{System authentication:} X.509 client certificates plus Authentication identity tokens.
+\item \textbf{Authorization of produced services:} ConsumerAuthorization grant per service operation at the provider;
+management services sysop only.
+\item \textbf{Authorization towards equipment:} each step's provider is orchestrated with the \emph{executor} as
+requester, so the equipment authorizes the executor, never the WorkflowManager or the session owner.
+\item \textbf{Object level:} only the session owner may abort, only the work-item holder may report or use its context,
+only the configured WorkflowManager may start work on an executor.
+\item \textbf{Human access:} the WorkflowConfigurator console is a separate loopback connector with a password (scrypt
+hash), session cookie, Host/Origin checks and lockout.
+\end{itemize}
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-23 & \arrowversion & Initial edition: black-box description of the Workflow SoS, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Embedded database instead of a separate database server; data ownership. & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}

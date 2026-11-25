@@ -1,0 +1,49 @@
+# Isolated smoke test (development profile, no ServiceRegistry). Started by run-smoke.sh; not a deployment.
+name: wf-smoke
+x-java: &java
+  image: eclipse-temurin:21-jre
+  working_dir: /app
+  networks: [smoke]
+  mem_limit: 512m
+services:
+  equipment:
+    image: python:3.13-alpine
+    networks: [smoke]
+    volumes: ["./equipment.py:/eq/equipment.py:ro"]
+    command: ["python", "-I", "/eq/equipment.py"]
+    ports: ["127.0.0.1:19000:9000"]
+  wfm:
+    <<: *java
+    volumes: ["../../workflow-manager/target/arrowhead-workflowmanager-5.4.0.jar:/app/app.jar:ro"]
+    ports: ["127.0.0.1:18482:8482"]
+    command: ["java", "-Xmx256m", "-jar", "/app/app.jar",
+      "--arrowhead.security.profile=development", "--sysmonitor.enabled=false", "--workflow.standalone=true",
+      "--domain.name=wfm", "--management.policy=sysop-only",
+      "--workflow.executors=WfeAgv|http://wfe-agv:8483|agv|*;WfeA|http://wfe-a:8483||*",
+      "--workflow.pull.claim-timeout=30"]
+  wfe-agv:
+    <<: *java
+    volumes: ["../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro"]
+    command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.application.name=WfeAgv",
+      "--arrowhead.security.profile=development", "--sysmonitor.enabled=false", "--workflow.standalone=true", "--domain.name=wfe-agv",
+      "--spring.datasource.url=jdbc:h2:mem:wfe;MODE=MariaDB;DATABASE_TO_LOWER=TRUE",
+      "--workflow.executor.capabilities=agv", "--workflow.manager.url=http://wfm:8482",
+      "--workflow.executor.static-providers=${STATIC_PROVIDERS}"]
+  wfe-a:
+    <<: *java
+    volumes: ["../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro"]
+    command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.application.name=WfeA",
+      "--arrowhead.security.profile=development", "--sysmonitor.enabled=false", "--workflow.standalone=true", "--domain.name=wfe-a",
+      "--spring.datasource.url=jdbc:h2:mem:wfe;MODE=MariaDB;DATABASE_TO_LOWER=TRUE",
+      "--workflow.manager.url=http://wfm:8482",
+      "--workflow.executor.static-providers=${STATIC_PROVIDERS}"]
+  wfe-pull:
+    <<: *java
+    volumes: ["../../workflow-executor/target/arrowhead-workflowexecutor-5.4.0.jar:/app/app.jar:ro"]
+    command: ["java", "-Xmx200m", "-jar", "/app/app.jar", "--spring.application.name=WfePull",
+      "--arrowhead.security.profile=development", "--sysmonitor.enabled=false", "--workflow.standalone=true", "--domain.name=wfe-pull",
+      "--spring.datasource.url=jdbc:h2:mem:wfe;MODE=MariaDB;DATABASE_TO_LOWER=TRUE",
+      "--workflow.executor.mode=pull", "--workflow.executor.poll-ms=200", "--workflow.manager.url=http://wfm:8482",
+      "--workflow.executor.static-providers=${STATIC_PROVIDERS}"]
+networks:
+  smoke: {}

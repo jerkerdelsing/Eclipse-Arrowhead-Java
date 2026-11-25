@@ -1,0 +1,479 @@
+\documentclass[a4paper]{arrowhead}
+
+\usepackage[yyyymmdd]{datetime}
+\usepackage{etoolbox}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{multirow}
+\usepackage{longtable}
+\usepackage{amssymb}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc,shapes.misc,shapes.geometric}
+
+\renewcommand{\dateseparator}{-}
+\setlength{\emergencystretch}{3em}
+\lstset{basicstyle=\ttfamily\footnotesize,breaklines=true,columns=fullflexible,frame=single,rulecolor=\color{gray!50},backgroundcolor=\color{gray!6}}
+\tikzset{
+  ahsys/.style={draw=ArrowheadBlue,very thick,fill=ArrowheadBlue!6,rounded corners=2pt,minimum width=3.2cm,minimum height=1.1cm,align=center,font=\small\bfseries},
+  ahext/.style={draw=ArrowheadGrey,thick,dashed,fill=gray!5,rounded corners=2pt,minimum width=3.2cm,minimum height=1.0cm,align=center,font=\small},
+  ahsrv/.style={draw=ArrowheadPurple,thick,fill=ArrowheadPurple!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahcsm/.style={draw=ArrowheadTeal,thick,fill=ArrowheadTeal!8,rounded corners=6pt,minimum height=0.55cm,inner xsep=4pt,align=center,font=\scriptsize\ttfamily},
+  ahdb/.style={draw=ArrowheadOrange,thick,fill=ArrowheadOrange!8,cylinder,shape border rotate=90,aspect=0.25,minimum height=0.9cm,align=center,font=\scriptsize},
+  ahflow/.style={-{Stealth[length=2.2mm]},thick,ArrowheadGrey},
+  ahlabel/.style={font=\scriptsize,fill=white,inner sep=1pt,align=center},
+}
+
+%% Special references
+\newcommand{\mref}[1]{{\textcolor{ArrowheadPurple}{\hyperref[sec:model:#1]{#1}}}}
+\newcommand{\oref}[1]{{\textcolor{ArrowheadBlue}{\hyperref[sec:operations:#1]{#1}}}}
+\newcommand{\pdef}[1]{{\textcolor{ArrowheadGrey}{#1\label{sec:model:primitives:#1}\label{sec:model:primitives:#1s}\label{sec:model:primitives:#1es}}}}
+\newcommand{\pref}[1]{{\textcolor{ArrowheadGrey}{\hyperref[sec:model:primitives:#1]{#1}}}}
+
+\newrobustcmd\osubsection[3]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}operation \textcolor{ArrowheadBlue}{#1}}
+  \subsection*{
+    \thesubsection\quad
+    operation
+    \textcolor{ArrowheadBlue}{#1}
+    (\notblank{#2}{\mref{#2}}{})
+    \notblank{#3}{: \mref{#3}}{}
+  }
+  \label{sec:operations:#1}
+}
+\newrobustcmd\msubsection[2]{
+  \addtocounter{subsection}{1}
+  \addcontentsline{toc}{subsection}{\protect\numberline{\thesubsection}#1 \textcolor{ArrowheadPurple}{#2}}
+  \subsection*{\thesubsection\quad#1 \textcolor{ArrowheadPurple}{#2}}
+  \label{sec:model:#2} \label{sec:model:#2s} \label{sec:model:#2es}
+}
+
+\begin{document}
+
+%% Arrowhead Document Properties
+\ArrowheadTitle{workflowExecution}
+\ArrowheadServiceID{workflowExecution}
+\ArrowheadType{Service Description}
+\ArrowheadTypeShort{SD}
+\ArrowheadVersion{5.4.0}
+\ArrowheadDate{2026-11-24}
+\ArrowheadAuthor{Documentation maintenance}
+\ArrowheadStatus{REVIEW DRAFT}
+\ArrowheadContact{Repository maintainers}
+\ArrowheadFooter{\href{www.arrowhead.eu}{www.arrowhead.eu}}
+\ArrowheadSetup
+%%
+
+%% Front Page
+\begin{center}
+  \vspace*{1cm}
+  \huge{\arrowtitle}
+
+  \vspace*{0.2cm}
+  \LARGE{\arrowtype}
+  \vspace*{1cm}
+
+  \Large{Service ID: \textit{``\arrowid''}}
+  \vspace*{\fill}
+
+  
+
+  \vspace*{1cm}
+  \vspace*{\fill}
+
+  % Front Page Abstract
+  \begin{abstract}
+    This document describes the \texttt{workflow\allowbreak{}Execution} service of the Eclipse Arrowhead workflow support systems, which runs work items on behalf of a WorkflowManager. It is provided by the WorkflowExecutor system, service version 1.0.0, documentation edition 5.4.0.
+  \end{abstract}
+
+  \vspace*{1cm}
+\end{center}
+
+\newpage
+%%
+
+%% Table of Contents
+\tableofcontents
+\newpage
+%%
+
+\section{Overview}
+\label{sec:overview}
+The \texttt{workflow\allowbreak{}Execution} service is provided by every WorkflowExecutor. In push mode the
+WorkflowManager selects an executor for an enabled step and hands it the work item with \oref{start}. The executor
+runs the execution primitive of the model, $compile \rightarrow O \rightarrow consume$~\cite{varga2026}, with itself
+as the consumer: it reserves or renews a lease when the step needs one, has the provider orchestrated for itself,
+composes the input, invokes the provider and reports through \texttt{workflow\allowbreak{}Work\allowbreak{}Item}. The service also tells the
+WorkflowManager what the executor can do (\oref{service-info}).
+
+The rest of this document is organized as follows.
+In Section~\ref{sec:operations}, we describe the abstract message operations provided by the service.
+In Section~\ref{sec:model}, we end the document by presenting the data types used by the mentioned operations.
+
+\subsection{Significant Prior Art}
+The executor contract of the Arrowhead Choreographer (\texttt{service-info}, \texttt{start},
+\texttt{abort}), unchanged since 4.6; Derhamy's HATEOAS workflow executor~\cite{derhamy2018workflow}.
+
+\subsection{How This Service Is Meant to Be Used}
+An executor registers \texttt{workflow\allowbreak{}Execution} in the ServiceRegistry with the metadata
+\texttt{workflow\allowbreak{}Capabilities}, \texttt{workflow\allowbreak{}Services}, \texttt{workflow\allowbreak{}Workstation} and \texttt{workflowMode}; the
+WorkflowManager discovers it there. For each enabled step the WorkflowManager calls \oref{start} on an executor whose
+capabilities satisfy $\eta(s)$ and whose services cover $\theta(s)$, preferring the least-loaded one. \oref{start}
+returns at once; the result arrives later as a report. The WorkflowManager calls \oref{abort} when a session is
+aborted or a step times out.
+
+\subsection{Important Delimitations and Dependencies}
+\label{sec:delimitations}
+\begin{itemize}
+\item Only the configured WorkflowManager (\texttt{workflow.\allowbreak{}manager.\allowbreak{}system-\allowbreak{}name}) or a sysop may start or abort work items (403 otherwise).
+\item The executor keeps no durable state; after a restart \oref{get-status} answers \texttt{UNKNOWN} and the WorkflowManager then treats the work item as lost (see \oref{get-status}).
+\item Equipment is invoked through adapters; the reference implementation has the generic HTTP/HTTPS JSON adapter only.
+\item An executor never consumes services outside its local cloud unless the step's policy allows it (\texttt{local\allowbreak{}Cloud\allowbreak{}Only = false}).
+\end{itemize}
+
+\paragraph{Authorization.} Each operation is authorized separately; \texttt{start} and \texttt{abort} additionally require the caller to be the configured WorkflowManager or a sysop.
+
+\newpage
+\section{Service Interface}
+\label{sec:operations}
+This section describes the interface of the \texttt{workflow\allowbreak{}Execution} service. Each subsection names an abstract operation,
+an input type and an output type, in that order. The input type is named inside parentheses, while the output type is
+preceded by a colon. Input and output types are only denoted when accepted or returned, respectively, by the operation
+in question. All abstract data types named in this section are defined in Section~\ref{sec:model}. The concrete
+interface (HTTP/TLS/JSON) is specified in the IDD of the same name.
+
+\begin{figure}[ht!]
+  \centering
+  \resizebox{0.92\textwidth}{!}{
+\begin{tikzpicture}
+\node[ahsys] (prov) at (4.6,0) {WorkflowExecutor\\[-1pt]{\normalfont\scriptsize $\ll$provider$\gg$}};
+\node[ahsrv] (srv) at (1.6,0) {workflowExecution};
+\draw[thick,ArrowheadPurple] (srv.east) -- (prov.west);
+\node[ahext] (c0) at (-3.0,0.00) {WorkflowManager\\[-1pt]{\scriptsize $\ll$consumer$\gg$}};
+\draw[ahflow] (c0.east) -- (srv.west);
+\end{tikzpicture}
+  }
+  \caption{SysML block view of the \texttt{workflowExecution} service: provider and typical consumers.}
+  \label{fig:SD}
+\end{figure}
+
+The following interface operations are available.
+
+{\small
+\begin{longtable}{|p{4.4cm}|p{5.6cm}|p{5.8cm}|}
+
+\hline
+\rowcolor{gray!33} Operation & Input & Output \\ \hline
+\endhead
+\oref{service-info} & -- & \mref{ExecutorInfo} \\ \hline
+\oref{start} & \mref{WorkItem} & -- \\ \hline
+\oref{abort} & \mref{AbortRequest} & -- \\ \hline
+\oref{get-status} & \mref{WorkItemRef} & \mref{ExecutionState} \\ \hline
+\end{longtable}
+}
+
+\osubsection{service-info}{}{ExecutorInfo}
+Returns the executor's name, capabilities $cap(w)$, runnable services, workstation and mode.
+\osubsection{start}{WorkItem}{}
+Accepts a work item and runs it asynchronously. The outcome is reported through \texttt{workflow\allowbreak{}Work\allowbreak{}Item.\allowbreak{}report}.
+\osubsection{abort}{AbortRequest}{}
+Aborts a running work item; the executor reports ABORTED.
+\osubsection{get-status}{WorkItemRef}{ExecutionState}
+Returns the executor's local state of a work item. The WorkflowManager uses it as liveness check: a held work item is lost when two checks in a row find it neither \texttt{ACCEPTED} nor \texttt{RUNNING}, or when the executor cannot be reached or is no longer registered for \texttt{workflow.\allowbreak{}executor.\allowbreak{}liveness.\allowbreak{}lost-\allowbreak{}after-\allowbreak{}seconds}. A lost item that is not bound goes to the next executor; a bound one is handled like \texttt{ERROR}.
+
+\newpage
+\section{Information Model}
+\label{sec:model}
+Here, all data objects that can be part of the \texttt{workflow\allowbreak{}Execution} service are listed in alphabetic order. Each
+subsection, which describes one type of object, begins with the \textit{struct} keyword (a collection of named fields,
+each with its own data type), the \textit{enum} keyword (a closed set of values) or the \textit{alias} keyword. As a
+complement to the explicitly defined types in this section, there is also a list of implicit primitive types in
+Section~\ref{sec:model:primitives}.
+
+\msubsection{struct}{AbortRequest}
+Aborts a work item on an executor.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{workItemId} & \pref{WorkItemId} & The work item. \\ \hline
+\texttt{sessionId} & \pref{SessionId} & Its session. \\ \hline
+\texttt{reason} & \pref{String} & Why. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{DispatchMode}
+How a step reaches an executor.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{push} & The WorkflowManager selects an executor and calls \texttt{workflow\allowbreak{}Execution.\allowbreak{}start} (default). \\ \hline
+\texttt{pull} & The WorkflowManager publishes the work item; an executor claims it with \texttt{workflow\allowbreak{}Work\allowbreak{}Item.\allowbreak{}claim}. \\ \hline
+\texttt{event} & Reserved for EventHandler notification; currently handled as \texttt{pull}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ExecutionState}
+State of a work item on an executor.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{workItemId} & \pref{WorkItemId} & The work item. \\ \hline
+\texttt{state} & \mref{ExecutorState} & Local state. \\ \hline
+\texttt{message} & \pref{String} & Last message. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ExecutorInfo}
+What an executor declares about itself.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{name} & \pref{SystemName} & Executor system name. \\ \hline
+\texttt{capabilities} & \pref{List}$<$\pref{String}$>$ & Capabilities $cap(w)$. \\ \hline
+\texttt{services} & \pref{List}$<$\pref{ServiceDefinition}$>$ & Services it can run; \texttt{*} means any. \\ \hline
+\texttt{workstation} & \pref{String} & Workstation. Optional. \\ \hline
+\texttt{mode} & \mref{DispatchMode} & \texttt{push} or \texttt{pull}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ExecutorRequirement}
+$\eta(s)$: constraints on the executor that runs a step.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{capability} & \pref{String} & A capability the executor must declare in \texttt{workflow\allowbreak{}Capabilities}. Optional. \\ \hline
+\texttt{workstation} & \pref{String} & The executor's workstation. Optional. \\ \hline
+\texttt{system} & \pref{SystemName} & A named executor system. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{ExecutorState}
+Local state of a work item on an executor. The authoritative state is held by the WorkflowManager.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{ACCEPTED} & Received, not yet started. \\ \hline
+\texttt{RUNNING} & Being run. \\ \hline
+\texttt{DONE} & Run finished with \texttt{SUCCESS}. \\ \hline
+\texttt{BIND\_FAILED} & Run ended with this report. \\ \hline
+\texttt{ERROR} & Run ended with this report. \\ \hline
+\texttt{FATAL\_ERROR} & Run ended with this report. \\ \hline
+\texttt{ABORTED} & Run aborted. \\ \hline
+\texttt{UNKNOWN} & The executor does not know the work item, e.g. after a restart. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{LeaseMode}
+Role of a step for a shared resource.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{reserve} & Reserves the resource; its result carries the lease token. \\ \hline
+\texttt{use} & Uses the resource; the executor renews the lease immediately before the invocation. \\ \hline
+\texttt{release} & Releases the resource. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{LeasePolicy}
+The role of a step for a shared resource.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{resource} & \pref{Name} & A declared resource. \\ \hline
+\texttt{mode} & \mref{LeaseMode} & \texttt{reserve}, \texttt{use} or \texttt{release}. \\ \hline
+\end{longtable}
+}
+
+\msubsection{enum}{OnError}
+Reaction to an \texttt{ERROR} report.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{11.9cm}|}
+
+\hline
+\rowcolor{gray!33} Value & Meaning \\ \hline
+\endhead
+\texttt{rebind} & Exclude the executor for this session and bind the step again. \\ \hline
+\texttt{retry} & Keep the executor: after \texttt{backoff\allowbreak{}Seconds} dispatch the step to the same executor again, or to the least-loaded candidate when that executor is no longer available (extension x-retry; for transient provider-side failures, the provider must accept a repeated call). \\ \hline
+\texttt{abort} & Fail the session. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Policy}
+Execution policy of a step. Every field other than \texttt{lease} and \texttt{local\allowbreak{}Cloud\allowbreak{}Only} is an extension outside the proven model.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{quantity} & \pref{Integer} & Number of executions; only 1 is accepted (check M01). Optional. \\ \hline
+\texttt{timeout\allowbreak{}Seconds} & \pref{Duration} & Extension x-timeout: the step fails when it runs longer. Optional. \\ \hline
+\texttt{nominal\allowbreak{}Duration\allowbreak{}Seconds} & \pref{Duration} & Expected duration, used to check lease durations (check L04). Optional. \\ \hline
+\texttt{retry} & \mref{Retry} & Extensions x-rebind and x-retry: behaviour on \texttt{ERROR}. Optional. \\ \hline
+\texttt{lease} & \mref{LeasePolicy} & The step's role for a shared resource. Optional. \\ \hline
+\texttt{local\allowbreak{}Cloud\allowbreak{}Only} & \pref{Boolean} & Whether orchestration may return providers of other clouds (default true). Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{Retry}
+Extensions x-rebind and x-retry.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{maxAttempts} & \pref{Integer} & Maximum attempts of the step in one session, counting every work item of the step; at least 1, default 1 (no further attempt). Optional. \\ \hline
+\texttt{onError} & \mref{OnError} & What an \texttt{ERROR} report causes while attempts remain.; default \texttt{rebind}. Optional. \\ \hline
+\texttt{backoff\allowbreak{}Seconds} & \pref{Duration} & Pause before a same-executor retry (\texttt{onError} = \texttt{retry}); 0--600, default 1. Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{ServiceRequirement}
+Requirements on the provider of the step's service, passed to orchestration.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{service\allowbreak{}Definition} & \pref{ServiceDefinition} & The service to consume. \\ \hline
+\texttt{interfaces} & \pref{List}$<$\pref{String}$>$ & Accepted interface template names, e.g. \texttt{generic\_\allowbreak{}https}. Optional. \\ \hline
+\texttt{minVersion} & \pref{String} & Lowest accepted service version. Optional. \\ \hline
+\texttt{maxVersion} & \pref{String} & Highest accepted service version. Optional. \\ \hline
+\texttt{metadata} & \pref{Map}$<$\pref{String}, \pref{JsonValue}$>$ & Metadata requirements on the service instance. Optional. \\ \hline
+\texttt{qos} & \pref{Map}$<$\pref{String}, \pref{JsonValue}$>$ & QoS requirements forwarded to orchestration. Optional. \\ \hline
+\texttt{requires\allowbreak{}Results} & \pref{List}$<$\pref{Name}$>$ & Steps whose results the provider needs; each must be in $dep(s)$ (check D04). Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{WorkItem}
+One attempt to run one step: what an executor needs to run it.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{workItemId} & \pref{WorkItemId} & Identifier of the attempt. \\ \hline
+\texttt{sessionId} & \pref{SessionId} & Session. \\ \hline
+\texttt{recipe} & \pref{String} & \texttt{name@version} of the recipe. \\ \hline
+\texttt{action} & \pref{Name} & Action of the step. \\ \hline
+\texttt{step} & \pref{Name} & Step name. \\ \hline
+\texttt{attempt} & \pref{Integer} & Attempt number from 1. \\ \hline
+\texttt{service} & \mref{ServiceRequirement} & $\theta(s)$. \\ \hline
+\texttt{executor} & \mref{ExecutorRequirement} & $\eta(s)$. Optional. \\ \hline
+\texttt{params} & \pref{Map}$<$\pref{String}, \pref{JsonValue}$>$ & Static parameters of the step. Optional. \\ \hline
+\texttt{input} & \pref{Template} & Input template $\kappa_s$. Optional. \\ \hline
+\texttt{policy} & \mref{Policy} & Step policy. Optional. \\ \hline
+\texttt{lease\allowbreak{}Duration\allowbreak{}Seconds} & \pref{Duration} & Lease duration of the step's resource. Optional. \\ \hline
+\texttt{parameters} & \pref{JsonObject} & Session parameters $\rho$ (included for convenience; also available from \texttt{workflow\allowbreak{}Context}). Optional. \\ \hline
+\texttt{dependency\allowbreak{}Results} & \pref{Map}$<$\pref{Name}, \pref{JsonValue}$>$ & $\xi|dep(s)$ (also available from \texttt{workflow\allowbreak{}Context}). Optional. \\ \hline
+\end{longtable}
+}
+
+\msubsection{struct}{WorkItemRef}
+Identifies a work item.
+
+{\small
+\begin{longtable}{|p{3.9cm}|p{4.4cm}|p{7.5cm}|}
+
+\hline
+\rowcolor{gray!33} Field & Type & Description \\ \hline
+\endhead
+\texttt{workItemId} & \pref{WorkItemId} & The work item. \\ \hline
+\end{longtable}
+}
+
+
+\subsection{Primitives}
+\label{sec:model:primitives}
+Types and structures mentioned throughout this document that are assumed to be available to implementations of this
+service. The concrete interpretation of each of these types must be provided by any IDD document claiming to implement
+this service.
+
+{\small
+\begin{longtable}{|p{3.2cm}|p{12.6cm}|}
+
+\hline
+\rowcolor{gray!33} Type & Description \\ \hline
+\endhead
+\pdef{Boolean} & One out of \texttt{true} or \texttt{false}. \\ \hline
+\pdef{Duration} & A length of time in seconds. \\ \hline
+\pdef{Integer} & A whole number. \\ \hline
+\pdef{JsonObject} & A set of named values. \\ \hline
+\pdef{JsonValue} & Any value: object, array, string, number, Boolean or null. \\ \hline
+\pdef{List} & An ordered collection of items of the type given in angle brackets. \\ \hline
+\pdef{Map} & A collection of key/value pairs of the types given in angle brackets. \\ \hline
+\pdef{Name} & An identifier of a recipe, action, step, parameter or resource: a letter followed by at most 62 letters, digits, \texttt{-} or \texttt{\_}. \\ \hline
+\pdef{ServiceDefinition} & The name of an Arrowhead service definition. Names are compared case-insensitively and without \texttt{-}, \texttt{\_} and spaces, so \texttt{temperature-\allowbreak{}read} and \texttt{temperature\allowbreak{}Read} denote the same service. \\ \hline
+\pdef{SessionId} & The identifier the WorkflowManager gives a session. \\ \hline
+\pdef{String} & A chain of characters. \\ \hline
+\pdef{SystemName} & The name of an Arrowhead system as it appears in its certificate and in the ServiceRegistry. \\ \hline
+\pdef{Template} & A value in which strings of the form \texttt{\$\{param.$p$\}} or \texttt{\$\{result.$s$.path\}} are replaced by a session parameter or by (a part of) a stored step result. \\ \hline
+\pdef{WorkItemId} & The identifier of one attempt to run one step of one session. \\ \hline
+\end{longtable}
+}
+
+
+\newpage
+\bibliographystyle{IEEEtran}
+\bibliography{bibliography}
+
+\newpage
+
+\section{Revision History}
+\subsection{Amendments}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
+\rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
+1 & 2026-11-23 & \arrowversion & Initial edition: service description of workflowExecution, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Retry policy; executor states; get-status as liveness check. & Documentation maintenance \\ \hline
+\end{tabularx}
+
+\subsection{Quality Assurance}
+
+\noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X |} \hline
+\rowcolor{gray!33} No. & Date & Version & Approved by \\ \hline
+1 & & \arrowversion & Pending review \\ \hline
+\end{tabularx}
+
+\end{document}

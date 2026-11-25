@@ -15,9 +15,12 @@ import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -69,6 +72,7 @@ public class SysMonitorPublisher {
 	private final SSLProperties serverSsl;
 	private volatile boolean stopped = false;
 	private final ObjectProvider<SysMonitorHealthIndicator> healthIndicator;
+	private final ObjectProvider<SysMonitorSource> sources;
 	private final ObjectMapper objectMapper = new ObjectMapper();
 	private final Instant startedAt = Instant.now();
 
@@ -107,6 +111,7 @@ public class SysMonitorPublisher {
 
 	private SysMonitorObservations observations;
 	private ScheduledExecutorService scheduler;
+	private final AtomicBoolean publishRequested = new AtomicBoolean();
 	private Connection connection;
 	private Channel channel;
 
@@ -114,10 +119,12 @@ public class SysMonitorPublisher {
 	// methods
 
 	//-------------------------------------------------------------------------------------------------
-	public SysMonitorPublisher(final SystemInfo sysInfo, final SSLProperties serverSsl, final ObjectProvider<SysMonitorHealthIndicator> healthIndicator) {
+	public SysMonitorPublisher(final SystemInfo sysInfo, final SSLProperties serverSsl, final ObjectProvider<SysMonitorHealthIndicator> healthIndicator,
+			final ObjectProvider<SysMonitorSource> sources) {
 		this.sysInfo = sysInfo;
 		this.serverSsl = serverSsl;
 		this.healthIndicator = healthIndicator;
+		this.sources = sources;
 	}
 
 	//-------------------------------------------------------------------------------------------------
@@ -149,10 +156,49 @@ public class SysMonitorPublisher {
 	}
 
 	//-------------------------------------------------------------------------------------------------
+	// Publishes the sources' state and events now instead of in the next cycle; returns at once. Requests made
+	// before the publication begins are one publication. Nothing is published when the publisher is stopped.
+	public void publishSourcesNow() {
+		final ScheduledExecutorService current = scheduler;
+		if (stopped || current == null || !publishRequested.compareAndSet(false, true)) {
+			return;
+		}
+
+		try {
+			current.execute(() -> {
+				publishRequested.set(false);
+				try {
+					ensureConnected();
+					publishSources();
+				} catch (final Exception ex) {
+					logger.debug(ex);
+					logger.warn("sysMonitor publication failed: " + ex.getMessage());
+				}
+			});
+		} catch (final RejectedExecutionException ex) {
+			logger.debug(ex);
+		}
+	}
+
+	//-------------------------------------------------------------------------------------------------
+	// echo, power, status and the types of the sources
+	public List<String> observationTypes() {
+		final Set<String> types = new LinkedHashSet<>(SysMonitorObservations.TYPES);
+		sources.orderedStream().forEach(s -> s.observationTypes().forEach(type -> {
+			if (!type.matches("[A-Za-z0-9_-]{1,63}") || !types.add(type)) {
+				throw new IllegalStateException("Invalid or duplicate sysMonitor observation type: " + type);
+			}
+		}));
+
+		return List.copyOf(types);
+	}
+
+	//-------------------------------------------------------------------------------------------------
 	public ServiceModel getServiceModel() {
+		final List<String> types = observationTypes();
 		final String templateName = sslEnabled ? Constants.GENERIC_AMQPS_INTERFACE_TEMPLATE_NAME : Constants.GENERIC_AMQP_INTERFACE_TEMPLATE_NAME;
 		final AmqpInterfaceModel amqpInterface = new AmqpInterfaceModel(templateName, List.of(brokerAddress), brokerPort, exchange,
-				observations.baseRoutingKey(), new LinkedHashSet<>(SysMonitorObservations.TYPES));
+				observations.baseRoutingKey(), new LinkedHashSet<>(types));
 
 		return new ServiceModel.Builder()
 				.serviceDefinition(Constants.SERVICE_DEF_SYS_MONITOR)
@@ -161,7 +207,7 @@ public class SysMonitorPublisher {
 				.metadata("contract", Constants.SYS_MONITOR_CONTRACT)
 				.metadata("schemaVersion", SysMonitorObservations.SCHEMA_VERSION)
 				.metadata("publisherMode", SysMonitorObservations.PUBLISHER_MODE)
-				.metadata("observationTypes", SysMonitorObservations.TYPES)
+				.metadata("observationTypes", types)
 				.metadata("delivery", "persistent, publisher-confirmed")
 				.build();
 	}
@@ -179,9 +225,25 @@ public class SysMonitorPublisher {
 			publish(SysMonitorObservations.TYPE_ECHO, observations.echo(now, now.getEpochSecond() - startedAt.getEpochSecond(), health));
 			publish(SysMonitorObservations.TYPE_POWER, observations.power(now));
 			publish(SysMonitorObservations.TYPE_STATUS, observations.status(now, health, serviceCount));
+			publishSources();
 		} catch (final Exception ex) {
 			logger.debug(ex);
 			logger.warn("sysMonitor publication failed: " + ex.getMessage());
+		}
+	}
+
+	//-------------------------------------------------------------------------------------------------
+	// Events first; an event is confirmed to its source only after the broker has confirmed it.
+	private void publishSources() throws Exception {
+		for (final SysMonitorSource source : sources.orderedStream().toList()) {
+			for (final SysMonitorReading event : source.events()) {
+				publish(event.observationType(), observations.of(event));
+				source.published(event);
+			}
+
+			for (final SysMonitorReading state : source.state()) {
+				publish(state.observationType(), observations.of(state));
+			}
 		}
 	}
 

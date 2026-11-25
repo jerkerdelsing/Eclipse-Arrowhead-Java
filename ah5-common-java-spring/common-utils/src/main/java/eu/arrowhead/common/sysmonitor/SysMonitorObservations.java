@@ -86,6 +86,14 @@ public class SysMonitorObservations {
 		return envelope(TYPE_STATUS, now, value, "1", health.healthy() ? "good" : "uncertain");
 	}
 
+	//-------------------------------------------------------------------------------------------------
+	public Map<String, Object> of(final SysMonitorReading reading) {
+		final Map<String, Object> observation = envelope(reading.observationType(), reading.time(), reading.value(), reading.unit(), reading.good() ? "good" : "uncertain");
+		observation.put("observationId", systemName + "-" + reading.observationType() + "-" + reading.id());
+
+		return observation;
+	}
+
 	//=================================================================================================
 	// assistant methods
 

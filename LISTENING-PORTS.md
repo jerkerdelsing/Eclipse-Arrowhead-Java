@@ -54,6 +54,14 @@ The Java packaged defaults are the reference Arrowhead 5 defaults. "Go shipped c
 | LocalCloudConfigurator | support | 8492 | 8095 | 8095 | — |
 | SoSConfigurator (legacy) | support | 8494 | — | — | — |
 | SoLocalCloudConfigurator | support | 8496 | — | — | — |
+| WorkflowManager | support | 8482 | — | — | — |
+| WorkflowExecutor | support | 8483 | — | — | — |
+| WorkflowConfigurator | support | 8484 (console 8485) | — | — | — |
+
+WorkflowManager and WorkflowExecutor (`ah5-Workflow-java/`, 2026-11-19) and WorkflowConfigurator (2026-11-21; its
+browser console on 8485 is plain HTTP for host loopback only, like the LocalCloudManager console on 8490) exist in Java only. **No Go or Rust
+implementation exists yet, so they are not interoperable across the three implementations**; the wire contract to port
+is described in `ah5-Workflow-java/README.md`.
 
 LocalCloudManager and LocalCloudConfigurator keep their existing Go/Rust defaults (8480, 8095), which differ
 from Java (8491, 8492); aligning them would change existing deployments and is left as a decision.

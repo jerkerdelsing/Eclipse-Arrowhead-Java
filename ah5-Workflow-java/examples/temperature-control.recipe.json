@@ -1,0 +1,22 @@
+{
+  "name": "temperature-control",
+  "version": "1.0.0",
+  "description": "Varga's temperature-control example: one Action, read -> evaluate -> switch, one Session per control period. A failure-free Session takes 3*3 + 2*1 = 11 transitions.",
+  "firstAction": "control",
+  "parameters": [
+    { "name": "threshold", "type": "number" }
+  ],
+  "actions": [
+    {
+      "name": "control",
+      "next": null,
+      "steps": [
+        { "name": "read", "service": { "serviceDefinition": "temperature-read" }, "next": ["evaluate"] },
+        { "name": "evaluate", "service": { "serviceDefinition": "temperature-evaluate" }, "next": ["switch"], "dep": ["read"],
+          "input": { "temperature": "${result.read.temperature}", "threshold": "${param.threshold}" } },
+        { "name": "switch", "service": { "serviceDefinition": "heating-switch" }, "dep": ["evaluate"],
+          "input": { "on": "${result.evaluate.heat}" } }
+      ]
+    }
+  ]
+}

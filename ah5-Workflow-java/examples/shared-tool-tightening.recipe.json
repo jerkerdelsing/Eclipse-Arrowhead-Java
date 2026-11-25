@@ -1,0 +1,53 @@
+{
+  "name": "shared-tool-tightening",
+  "version": "1.0.0",
+  "description": "Varga's forklift worked example (3 Actions, 9 Steps) in the proposed recipe format. A failure-free Session takes 3*9 + 2*3 = 33 transitions.",
+  "firstAction": "provision",
+  "parameters": [
+    { "name": "line", "type": "string" },
+    { "name": "product", "type": "string" }
+  ],
+  "resources": [
+    { "name": "NR7", "leaseDurationSeconds": 120 }
+  ],
+  "dispatch": "push",
+  "actions": [
+    {
+      "name": "provision",
+      "next": "use",
+      "steps": [
+        { "name": "reserve", "service": { "serviceDefinition": "reserve-tool" }, "next": ["move"],
+          "policy": { "lease": { "resource": "NR7", "mode": "reserve" } } },
+        { "name": "program", "service": { "serviceDefinition": "get-program" }, "next": ["configure"] },
+        { "name": "move", "service": { "serviceDefinition": "transport-tool" }, "next": ["configure"], "dep": ["reserve"],
+          "params": { "to": "station" }, "executor": { "capability": "agv" },
+          "policy": { "lease": { "resource": "NR7", "mode": "use" }, "nominalDurationSeconds": 40 } },
+        { "name": "configure", "service": { "serviceDefinition": "configure-tool", "requiresResults": ["get-program"] },
+          "dep": ["program", "reserve"], "policy": { "lease": { "resource": "NR7", "mode": "use" }, "nominalDurationSeconds": 5 } }
+      ]
+    },
+    {
+      "name": "use",
+      "next": "return",
+      "steps": [
+        { "name": "tighten", "service": { "serviceDefinition": "tighten-fasteners" }, "next": ["evaluate", "record"],
+          "dep": ["configure", "reserve"], "policy": { "lease": { "resource": "NR7", "mode": "use" }, "nominalDurationSeconds": 60 } },
+        { "name": "evaluate", "service": { "serviceDefinition": "evaluate-tightening", "requiresResults": ["tighten-fasteners", "get-program"] },
+          "dep": ["tighten", "program"] },
+        { "name": "record", "service": { "serviceDefinition": "record-tightening", "requiresResults": ["tighten-fasteners"] },
+          "dep": ["tighten"] }
+      ]
+    },
+    {
+      "name": "return",
+      "next": null,
+      "steps": [
+        { "name": "back", "service": { "serviceDefinition": "transport-tool" }, "next": ["release"], "dep": ["reserve"],
+          "params": { "to": "crib" }, "executor": { "capability": "agv" },
+          "policy": { "lease": { "resource": "NR7", "mode": "use" }, "nominalDurationSeconds": 40 } },
+        { "name": "release", "service": { "serviceDefinition": "release-tool" }, "dep": ["reserve"],
+          "policy": { "lease": { "resource": "NR7", "mode": "release" } } }
+      ]
+    }
+  ]
+}

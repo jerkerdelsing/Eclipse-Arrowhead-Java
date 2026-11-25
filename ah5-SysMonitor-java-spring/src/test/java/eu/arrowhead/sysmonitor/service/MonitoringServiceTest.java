@@ -98,6 +98,20 @@ public class MonitoringServiceTest {
 	}
 
 	//-------------------------------------------------------------------------------------------------
+	// a provider's own observation types (here WorkflowManager's) are subscribed like echo, power and status
+	@Test
+	public void providerSpecificTypesCanBeSubscribed() throws Exception {
+		when(http.consumeService(eq(Constants.SERVICE_DEF_SERVICE_ORCHESTRATION), eq("pull"), eq(Map.class), any(Object.class))).thenReturn(map("results", List.of(
+				offer("WorkflowManager", "TestCloud.sysmonitor.WorkflowManager.WorkflowManager", "CERT_AUTH", List.of("echo", "power", "status", "executorLiveness", "workItemLost")))));
+		when(store.subscriptions()).thenReturn(Map.of("WorkflowManager", map("providerSystem", "WorkflowManager", "observationTypes", List.of("executorLiveness", "workItemLost"), "enabled", true)));
+
+		service.orchestrate();
+
+		verify(intake).apply(Set.of("TestCloud.sysmonitor.WorkflowManager.WorkflowManager.executorLiveness", "TestCloud.sysmonitor.WorkflowManager.WorkflowManager.workItemLost"));
+		assertEquals(List.of(), ((Map<?, ?>) service.subscriptionsView().get(0)).get("unknownTypes"));
+	}
+
+	//-------------------------------------------------------------------------------------------------
 	@Test
 	public void noneDefaultAndDisabledSubscriptionsBindNothing() throws Exception {
 		ReflectionTestUtils.setField(service, "defaultSubscription", "none");
