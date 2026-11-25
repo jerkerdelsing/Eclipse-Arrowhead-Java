@@ -282,7 +282,7 @@ def sosdd():
              ("S-FailInvoke", "invocation fails", r"$status :=$ failed", "WfE reports FATAL\\_ERROR (or ERROR without retry)")]
     codes = [("SUCCESS", "S-Done", "Continue."), ("FATAL\\_ERROR", "S-FailInvoke", "Session failed (absorbing); S-FailBind when the step was not bound yet."),
              ("ERROR", "extension x-rebind or x-retry", "Under a retry policy: exclude the executor and bind again (\\texttt{rebind}), or dispatch to the same executor after a backoff (\\texttt{retry}); otherwise as FATAL\\_ERROR."),
-             ("ABORTED", "--", "Acknowledges an abort (extension x-abort has already failed the session)."), ("BOUND", "completes S-Bind", "Executor may invoke."),
+             ("ABORTED", "--", "Acknowledges an abort (extension x-abort has already failed the session); unasked for, the session fails as with FATAL\\_ERROR."), ("BOUND", "completes S-Bind", "Executor may invoke."),
              ("BIND\\_FAILED", "S-Bind not possible", "Next executor, otherwise S-FailBind.")]
     ext = [("x-rebind", "Another executor after ERROR; the one that failed is excluded", "Implemented"),
            ("x-abort", "External abort", "Implemented"), ("x-timeout", "Step timeout", "Implemented"),
@@ -436,7 +436,7 @@ Until then the SoS interoperates with Go and Rust \emph{{core}} systems only thr
 \section{{Verification}}
 \label{{sec:verification}}
 \begin{{itemize}}
-\item Unit tests: 35 model, 15 WorkflowManager, 7 WorkflowExecutor and 7 WorkflowConfigurator tests; 12 Node tests of the
+\item Unit tests: 35 model, 22 WorkflowManager, 7 WorkflowExecutor and 7 WorkflowConfigurator tests; 12 Node tests of the
 editor model (all passed on 2026-11-24, with the embedded database).
 \item Smoke test in an isolated Docker network with the embedded database: 18/18 checks on 2026-11-24, including three concurrent forklift sessions without
 overlapping tool use and lease expiry after a blocked AGV.

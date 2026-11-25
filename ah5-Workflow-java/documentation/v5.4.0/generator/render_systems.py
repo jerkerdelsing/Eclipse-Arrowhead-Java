@@ -72,7 +72,8 @@ A-Start, S-Enable, S-Bind, S-Done, A-Finish, Z-Close, S-FailBind and S-FailInvok
 \item Extensions, flagged per session: x-rebind (another executor after ERROR), x-retry (the same executor again after a
 backoff), x-abort, x-timeout, compensation (lease release on failure), x-guard/x-skip (guarded transitions with dead-path elimination).
 \item Dispatch: push (executor selection by $\eta(s)$ and $\theta(s)$, least loaded, next executor after BIND\_FAILED),
-pull (atomic claim, holder-only reports, timeout of unclaimed work items); \texttt{event} is accepted and handled as pull.
+pull (atomic claim, holder-only reports, timeout of unclaimed work items); liveness check of the executors holding
+work items; \texttt{event} is accepted and handled as pull.
 \item Session context ($\rho$, $\xi|dep(s)$) for executors; FIFO leases with renewal and expiry for shared resources.
 \item Product integration (retrieve recipe at start, store results at Z-Close) and an audit worklog.
 \end{itemize}""",
@@ -101,9 +102,9 @@ WorkflowManager restart resumes running sessions. Executors keep no durable stat
 \item One local cloud: delegating actions to WorkflowManagers in other clouds through Gatekeeper/GateTunnel and the
 disconnected working copy are designed but not implemented.
 \item EventHandler notifications (\texttt{event} dispatch and workflow events) are not implemented.
-\item \texttt{onError} of a retry policy must be stated: the recipe schema names \texttt{rebind} as default, but the engine
-fails the session when it is absent.
-\item A step without \texttt{timeoutSeconds} has no limit once an executor holds its work item.
+\item A step whose executor answers that it is still running has no time limit unless its policy sets
+\texttt{timeoutSeconds}. An executor cut off from the WorkflowManager may still be using equipment when its work item is
+declared lost; a step that must not be repeated should have no retry policy.
 \item Recovery beyond the listed extensions (compensation of arbitrary steps, \texttt{quantity} $>$ 1) is not provided;
 the theorems do not cover sessions that use extensions.
 \item The \texttt{workflowProduct} side is implemented as a consumer only; no product system exists yet.
@@ -118,7 +119,7 @@ the theorems do not cover sessions that use extensions.
     consumed=[("serviceDiscovery", "ServiceRegistry", "register, revoke, lookup", r"Registration; discovery of executors (\texttt{workflowExecution} with its metadata) and the catalogue check C01."),
               ("identity", "Authentication", "login, logout, identity-verify", "Own identity token; verification of callers."),
               ("authorization", "ConsumerAuthorization", "verify", "Provider-side authorization of every service operation."),
-              ("workflowExecution", "WorkflowExecutor", "start, abort", r"Push dispatch and abort of work items."),
+              ("workflowExecution", "WorkflowExecutor", "start, abort, get-status", r"Push dispatch and abort of work items; liveness check."),
               ("workflowProduct", "Intelligent Product", "retrieve-process-step, store-process-step-result", "Product-driven sessions."),
               ("sysMonitor (AMQP)", "SysMonitor broker", "publish", r"Health and metrics when \texttt{sysmonitor.enabled}.")],
     config=[("server.port", "8482", "Arrowhead connector port."),
@@ -127,6 +128,8 @@ the theorems do not cover sessions that use extensions.
             ("workflow.executors", "(empty)", r"Statically configured executors (development, or executors outside the ServiceRegistry)."),
             ("workflow.executor.discovery.cache-seconds", "10", "How long discovered executors are cached."),
             ("workflow.pull.claim-timeout", "300", "Seconds a published (pull) work item may wait for a claim before S-FailBind."),
+            ("workflow.executor.liveness.check-seconds", "30", r"How often executors are asked (\texttt{workflowExecution.get-status}) whether they still run the work items they hold; 0 disables the check."),
+            ("workflow.executor.liveness.lost-after-seconds", "300", "How long an executor may be unreachable or unregistered before the work items it holds are lost."),
             ("workflow.worker.threads", "8", "Dispatch worker threads."),
             ("workflow.lease.default-duration", "120", "Default lease duration in seconds."),
             ("workflow.lease.release-on-failure", "false", "Compensation: release a failed session's leases."),
@@ -159,7 +162,13 @@ none is left S-FailBind fires. After an \texttt{ERROR} report, while the retry p
 excludes the executor and dispatches the step again, whereas x-retry keeps the attempt in state \texttt{RETRY\_WAIT} for
 the backoff and then dispatches to the same executor, if it is still a candidate. The backoff is ended by a delayed task
 or, after a restart, by the watchdog, which runs every second. In pull mode a retried step is published again and any
-suitable executor may claim it. Guards are evaluated by
+suitable executor may claim it.
+
+Every \texttt{workflow.executor.liveness.check-seconds} the engine asks each executor, on the worker pool, about the
+work items it holds. A work item is lost when the executor answers in two checks in a row that it does not run it, or
+stays unreachable or unregistered for \texttt{lost-after-seconds}; a lost item that was not bound goes to the next
+executor without an extension, a bound one is handled like \texttt{ERROR}. A refused question (missing grant for
+\texttt{get-status}) and a failed discovery prove nothing and lose nothing. Guards are evaluated by
 \texttt{GuardExpression} from $\rho$ and $\xi$ when a step completes; a step whose incoming transitions were all not
 taken is skipped (x-skip).""",
 )
@@ -201,8 +210,8 @@ report); work items run on a thread pool (\texttt{workflow.executor.threads}, de
 between work items.
 \end{itemize}""",
     stateful=r"""Stateless with respect to workflows: the authoritative state is in the WorkflowManager. After a restart
-unknown work items are reported as \texttt{UNKNOWN} by \texttt{get-status}; the WorkflowManager fails the step when its
-\texttt{timeoutSeconds} is exceeded.""",
+unknown work items are reported as \texttt{UNKNOWN} by \texttt{get-status}, which tells the
+WorkflowManager that the work is lost.""",
     delimitations=r"""\begin{itemize}
 \item Only HTTP/HTTPS JSON equipment; MQTT, CoAP and OPC UA adapters are not implemented (the SPI exists).
 \item TOKEN\_AUTH provider interfaces (orchestration tokens) are not used.
@@ -553,7 +562,7 @@ VERIFICATION = {
     "WorkflowManager": r"""
 \section{Verification}
 \label{sec:verification}
-Unit tests: 35 \texttt{workflow-model} tests (rules, validator, guards, codec, compiler) and 15 WorkflowManager tests
+Unit tests: 35 \texttt{workflow-model} tests (rules, validator, guards, codec, compiler) and 22 WorkflowManager tests
 (Spring, with the system's own schema on the embedded database and Hibernate validating it), passed on 2026-11-24. The
 smoke test (\texttt{verification/smoke}: one WorkflowManager with its embedded database, three executors, simulated plant)
 passed 18/18 checks on the same day, including three concurrent forklift sessions without overlapping tool

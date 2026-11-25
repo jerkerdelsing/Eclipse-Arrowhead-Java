@@ -127,7 +127,7 @@ aborted or a step times out.
 \label{sec:delimitations}
 \begin{itemize}
 \item Only the configured WorkflowManager (\texttt{workflow.\allowbreak{}manager.\allowbreak{}system-\allowbreak{}name}) or a sysop may start or abort work items (403 otherwise).
-\item The executor keeps no durable state; after a restart \oref{get-status} answers \texttt{UNKNOWN} and the step timeout applies when the step's policy sets one. Without it the WorkflowManager keeps waiting for the report.
+\item The executor keeps no durable state; after a restart \oref{get-status} answers \texttt{UNKNOWN} and the WorkflowManager then treats the work item as lost (see \oref{get-status}).
 \item Equipment is invoked through adapters; the reference implementation has the generic HTTP/HTTPS JSON adapter only.
 \item An executor never consumes services outside its local cloud unless the step's policy allows it (\texttt{local\allowbreak{}Cloud\allowbreak{}Only = false}).
 \end{itemize}
@@ -180,7 +180,7 @@ Accepts a work item and runs it asynchronously. The outcome is reported through 
 \osubsection{abort}{AbortRequest}{}
 Aborts a running work item; the executor reports ABORTED.
 \osubsection{get-status}{WorkItemRef}{ExecutionState}
-Returns the executor's local state of a work item.
+Returns the executor's local state of a work item. The WorkflowManager uses it as liveness check: a held work item is lost when two checks in a row find it neither \texttt{ACCEPTED} nor \texttt{RUNNING}, or when the executor cannot be reached or is no longer registered for \texttt{workflow.\allowbreak{}executor.\allowbreak{}liveness.\allowbreak{}lost-\allowbreak{}after-\allowbreak{}seconds}. A lost item that is not bound goes to the next executor; a bound one is handled like \texttt{ERROR}.
 
 \newpage
 \section{Information Model}
@@ -279,7 +279,11 @@ Local state of a work item on an executor. The authoritative state is held by th
 \endhead
 \texttt{ACCEPTED} & Received, not yet started. \\ \hline
 \texttt{RUNNING} & Being run. \\ \hline
-\texttt{DONE} & Run finished and reported (whatever the report was). \\ \hline
+\texttt{DONE} & Run finished with \texttt{SUCCESS}. \\ \hline
+\texttt{BIND\_FAILED} & Run ended with this report. \\ \hline
+\texttt{ERROR} & Run ended with this report. \\ \hline
+\texttt{FATAL\_ERROR} & Run ended with this report. \\ \hline
+\texttt{ABORTED} & Run aborted. \\ \hline
 \texttt{UNKNOWN} & The executor does not know the work item, e.g. after a restart. \\ \hline
 \end{longtable}
 }
@@ -356,7 +360,7 @@ Extensions x-rebind and x-retry.
 \rowcolor{gray!33} Field & Type & Description \\ \hline
 \endhead
 \texttt{maxAttempts} & \pref{Integer} & Maximum attempts of the step in one session, counting every work item of the step; at least 1, default 1 (no further attempt). Optional. \\ \hline
-\texttt{onError} & \mref{OnError} & What an \texttt{ERROR} report causes while attempts remain. State it explicitly: the recipe schema names \texttt{rebind} as default, but the Java WorkflowManager fails the session when it is absent. Optional. \\ \hline
+\texttt{onError} & \mref{OnError} & What an \texttt{ERROR} report causes while attempts remain.; default \texttt{rebind}. Optional. \\ \hline
 \texttt{backoff\allowbreak{}Seconds} & \pref{Duration} & Pause before a same-executor retry (\texttt{onError} = \texttt{retry}); 0--600, default 1. Optional. \\ \hline
 \end{longtable}
 }
@@ -462,7 +466,7 @@ this service.
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: service description of workflowExecution, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
-2 & 2026-11-24 & \arrowversion & Retry policy as implemented; behaviour after a restart. & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Retry policy; executor states; get-status as liveness check. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

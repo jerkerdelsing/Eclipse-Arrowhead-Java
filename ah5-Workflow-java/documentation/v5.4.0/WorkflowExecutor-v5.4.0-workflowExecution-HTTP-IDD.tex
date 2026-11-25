@@ -200,7 +200,7 @@ Success & 200 OK, empty body. \\ \hline
 \end{lstlisting}
 
 \osubsection{get-status}{GET}{/workflowexecutor/execution/status/\{workItemId\}}{WorkItemRef}{ExecutionState}
-Returns the executor's local state of a work item.
+Returns the executor's local state of a work item. The WorkflowManager uses it as liveness check: a held work item is lost when two checks in a row find it neither \texttt{ACCEPTED} nor \texttt{RUNNING}, or when the executor cannot be reached or is no longer registered for \texttt{workflow.\allowbreak{}executor.\allowbreak{}liveness.\allowbreak{}lost-\allowbreak{}after-\allowbreak{}seconds}. A lost item that is not bound goes to the next executor; a bound one is handled like \texttt{ERROR}.
 
 {\small
 \begin{longtable}{|p{3.0cm}|p{1.4cm}|p{3.2cm}|p{8.2cm}|}
@@ -341,7 +341,11 @@ Local state of a work item on an executor. The authoritative state is held by th
 \endhead
 \texttt{ACCEPTED} & Received, not yet started. \\ \hline
 \texttt{RUNNING} & Being run. \\ \hline
-\texttt{DONE} & Run finished and reported (whatever the report was). \\ \hline
+\texttt{DONE} & Run finished with \texttt{SUCCESS}. \\ \hline
+\texttt{BIND\_FAILED} & Run ended with this report. \\ \hline
+\texttt{ERROR} & Run ended with this report. \\ \hline
+\texttt{FATAL\_ERROR} & Run ended with this report. \\ \hline
+\texttt{ABORTED} & Run aborted. \\ \hline
 \texttt{UNKNOWN} & The executor does not know the work item, e.g. after a restart. \\ \hline
 \end{longtable}
 }
@@ -418,7 +422,7 @@ Extensions x-rebind and x-retry.
 \rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
 \endhead
 \texttt{maxAttempts} & \pref{Integer} & no & Maximum attempts of the step in one session, counting every work item of the step; at least 1, default 1 (no further attempt). \\ \hline
-\texttt{onError} & \mref{OnError} & no & What an \texttt{ERROR} report causes while attempts remain. State it explicitly: the recipe schema names \texttt{rebind} as default, but the Java WorkflowManager fails the session when it is absent. \\ \hline
+\texttt{onError} & \mref{OnError} & no & What an \texttt{ERROR} report causes while attempts remain.; default \texttt{rebind}. \\ \hline
 \texttt{backoff\allowbreak{}Seconds} & \pref{Duration} & no & Pause before a same-executor retry (\texttt{onError} = \texttt{retry}); 0--600, default 1. \\ \hline
 \end{longtable}
 }
@@ -584,7 +588,7 @@ interfaces (ServiceRegistry, Authentication, ConsumerAuthorization, DynamicServi
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: interface design description of workflowExecution over HTTP/TLS/JSON, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
-2 & 2026-11-24 & \arrowversion & Retry policy as implemented; behaviour after a restart. & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Retry policy; executor states; get-status as liveness check. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

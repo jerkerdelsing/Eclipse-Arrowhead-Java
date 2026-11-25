@@ -28,5 +28,4 @@ The `.tex` files are generated from `generator/` (`model.py` holds the data mode
 - The formal model follows Varga, *Sensors* 2026, 26, 7025. The design rationale follows ../../ARCHITECTURE.md.
 - **Go and Rust:** no implementation exists. Every IDD, SysDD and the SoSDD states this; the workflow systems are not yet interoperable across the three implementations.
 - `workflowProduct` is a proposed contract. Only the WorkflowManager's consumer side exists.
-- **`onError` default:** `model/recipe.schema.json` names `rebind` as default, but the WorkflowManager fails the session when a retry policy has no `onError`. The documents describe the implemented behaviour.
 - **Cloud test:** the 49/49 result is from 2026-11-21, before the database was embedded; it has not been repeated.

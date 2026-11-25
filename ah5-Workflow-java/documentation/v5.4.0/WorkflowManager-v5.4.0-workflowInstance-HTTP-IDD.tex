@@ -292,13 +292,13 @@ Success & 200 OK. \\ \hline
 
 \begin{lstlisting}[caption={Example response body}]
 { "sessionId": 42, "status": "completed",
-  "trace": [ { "seq": 1, "rule": "S-Enable", "target": "read", "at": "..." },
-             { "seq": 2, "rule": "S-Bind", "target": "read", "detail": "WfeA", "at": "..." },
+  "trace": [ { "seq": 1, "rule": "S_ENABLE", "target": "read", "at": "..." },
+             { "seq": 2, "rule": "S_BIND", "target": "read", "detail": "WfeA", "at": "..." },
              ... ,
-             { "seq": 14, "rule": "Z-Close", "at": "..." } ],
+             { "seq": 14, "rule": "Z_CLOSE", "at": "..." } ],
   "results": { "read": { "temperature": 21.5 }, "evaluate": { "heat": true }, ... },
   "bindings": { "read": { "provider": "WfEquipment", ... } },
-  "executorAssignment": { "read": "WfeA", ... }, "runner": { "read": "WfeA", ... },
+  "executorAssignment": {}, "runner": { "read": "WfeA", ... },
   "modelTransitions": 14, "transitionBound": 17, "withinModel": false }
 \end{lstlisting}
 
@@ -341,7 +341,7 @@ Error response of every operation (common library \texttt{Error\allowbreak{}Mess
 }
 
 \msubsection{enum}{Rule}
-Transition rules: the eight rules of~\cite{varga2026} and the extensions (\texttt{x-}).
+Transition rules as they appear in a trace: the eight rules of~\cite{varga2026} and the extensions (\texttt{X\_}). The texts of this document set write them as in the model, e.g. S-Enable and x-rebind.
  Encoded as a JSON string.
 {\small
 \begin{longtable}{|p{3.9cm}|p{11.9cm}|}
@@ -349,19 +349,19 @@ Transition rules: the eight rules of~\cite{varga2026} and the extensions (\textt
 \hline
 \rowcolor{gray!33} Value & Meaning \\ \hline
 \endhead
-\texttt{A-Start} & An action becomes active after its predecessor completed. \\ \hline
-\texttt{S-Enable} & A step becomes enabled when its action is active and its predecessors completed. \\ \hline
-\texttt{S-Bind} & An enabled step is bound to a provider (and executor) and becomes running. \\ \hline
-\texttt{S-Done} & A running step completed; its result is stored. \\ \hline
-\texttt{A-Finish} & Every step of an action completed. \\ \hline
-\texttt{Z-Close} & Every action completed: the session is completed. \\ \hline
-\texttt{S-FailBind} & No executor/provider could be bound: the session fails. \\ \hline
-\texttt{S-FailInvoke} & The invocation failed: the session fails. \\ \hline
-\texttt{x-rebind} & Extension: after \texttt{ERROR} the step is enabled again and the executor that failed is excluded. \\ \hline
-\texttt{x-retry} & Extension: after \texttt{ERROR} the step is enabled again for the same executor, once its backoff is over. \\ \hline
-\texttt{x-abort} & Extension: the session was aborted. \\ \hline
-\texttt{x-timeout} & Extension: a step exceeded its timeout. \\ \hline
-\texttt{x-skip} & Extension: a step was skipped because no guarded transition to it was taken. \\ \hline
+\texttt{A\_START} & An action becomes active after its predecessor completed. \\ \hline
+\texttt{S\_ENABLE} & A step becomes enabled when its action is active and its predecessors completed. \\ \hline
+\texttt{S\_BIND} & An enabled step is bound to a provider (and executor) and becomes running. \\ \hline
+\texttt{S\_DONE} & A running step completed; its result is stored. \\ \hline
+\texttt{A\_FINISH} & Every step of an action completed. \\ \hline
+\texttt{Z\_CLOSE} & Every action completed: the session is completed. \\ \hline
+\texttt{S\_FAIL\_BIND} & No executor/provider could be bound: the session fails. \\ \hline
+\texttt{S\_\allowbreak{}FAIL\_\allowbreak{}INVOKE} & The invocation failed: the session fails. \\ \hline
+\texttt{X\_REBIND} & Extension: after \texttt{ERROR} the step is enabled again and the executor that failed is excluded. \\ \hline
+\texttt{X\_RETRY} & Extension: after \texttt{ERROR} the step is enabled again for the same executor, once its backoff is over. \\ \hline
+\texttt{X\_ABORT} & Extension: the session was aborted. \\ \hline
+\texttt{X\_TIMEOUT} & Extension: a step exceeded its timeout. \\ \hline
+\texttt{X\_SKIP} & Extension: a step was skipped because no guarded transition to it was taken. \\ \hline
 \end{longtable}
 }
 
@@ -481,7 +481,7 @@ The run of a session: the transitions and the data the rules produced.
 \texttt{trace} & \pref{List}$<$\mref{Transition}$>$ & yes & Transitions in order. \\ \hline
 \texttt{results} & \pref{Map}$<$\pref{Name}, \pref{JsonValue}$>$ & yes & $\xi$: stored step results. \\ \hline
 \texttt{bindings} & \pref{Map}$<$\pref{Name}, \pref{JsonValue}$>$ & yes & $\beta$: orchestration result per bound step. \\ \hline
-\texttt{executor\allowbreak{}Assignment} & \pref{Map}$<$\pref{Name}, \pref{SystemName}$>$ & yes & $\varepsilon$: executor per step. \\ \hline
+\texttt{executor\allowbreak{}Assignment} & \pref{Map}$<$\pref{Name}, \pref{SystemName}$>$ & yes & $\varepsilon$: executor of the steps whose $\eta(s)$ requires a capability. \\ \hline
 \texttt{runner} & \pref{Map}$<$\pref{Name}, \pref{SystemName}$>$ & yes & The system that ran each step. \\ \hline
 \texttt{model\allowbreak{}Transitions} & \pref{Integer} & yes & Transitions of the proven rule set. \\ \hline
 \texttt{transition\allowbreak{}Bound} & \pref{Integer} & yes & Theorem~1 bound. \\ \hline
@@ -603,7 +603,7 @@ interfaces (ServiceRegistry, Authentication, ConsumerAuthorization, DynamicServi
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: interface design description of workflowInstance over HTTP/TLS/JSON, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
-2 & 2026-11-24 & \arrowversion & Extension names; rule x-retry. & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Extension names; rule names as on the wire; rule x-retry. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}

@@ -395,7 +395,7 @@ Extensions x-rebind and x-retry.
 \rowcolor{gray!33} Field & Type & Description \\ \hline
 \endhead
 \texttt{maxAttempts} & \pref{Integer} & Maximum attempts of the step in one session, counting every work item of the step; at least 1, default 1 (no further attempt). Optional. \\ \hline
-\texttt{onError} & \mref{OnError} & What an \texttt{ERROR} report causes while attempts remain. State it explicitly: the recipe schema names \texttt{rebind} as default, but the Java WorkflowManager fails the session when it is absent. Optional. \\ \hline
+\texttt{onError} & \mref{OnError} & What an \texttt{ERROR} report causes while attempts remain.; default \texttt{rebind}. Optional. \\ \hline
 \texttt{backoff\allowbreak{}Seconds} & \pref{Duration} & Pause before a same-executor retry (\texttt{onError} = \texttt{retry}); 0--600, default 1. Optional. \\ \hline
 \end{longtable}
 }

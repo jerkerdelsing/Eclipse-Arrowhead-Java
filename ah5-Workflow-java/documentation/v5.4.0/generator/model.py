@@ -95,7 +95,7 @@ struct("Policy", "Execution policy of a step. Every field other than \\texttt{le
        ("localCloudOnly", "Boolean", "Whether orchestration may return providers of other clouds (default true).", False))
 struct("Retry", "Extensions x-rebind and x-retry.",
        ("maxAttempts", "Integer", "Maximum attempts of the step in one session, counting every work item of the step; at least 1, default 1 (no further attempt).", False),
-       ("onError", "OnError", "What an \\texttt{ERROR} report causes while attempts remain. State it explicitly: the recipe schema names \\texttt{rebind} as default, but the Java WorkflowManager fails the session when it is absent.", False),
+       ("onError", "OnError", "What an \\texttt{ERROR} report causes while attempts remain.; default \\texttt{rebind}.", False),
        ("backoffSeconds", "Duration", "Pause before a same-executor retry (\\texttt{onError} = \\texttt{retry}); 0--600, default 1.", False))
 struct("LeasePolicy", "The role of a step for a shared resource.",
        ("resource", "Name", "A declared resource.", True),
@@ -220,7 +220,7 @@ struct("Trace", "The run of a session: the transitions and the data the rules pr
        ("trace", "List<Transition>", "Transitions in order.", True),
        ("results", "Map<Name,JsonValue>", "$\\xi$: stored step results.", True),
        ("bindings", "Map<Name,JsonValue>", "$\\beta$: orchestration result per bound step.", True),
-       ("executorAssignment", "Map<Name,SystemName>", "$\\varepsilon$: executor per step.", True),
+       ("executorAssignment", "Map<Name,SystemName>", "$\\varepsilon$: executor of the steps whose $\\eta(s)$ requires a capability.", True),
        ("runner", "Map<Name,SystemName>", "The system that ran each step.", True),
        ("modelTransitions", "Integer", "Transitions of the proven rule set.", True),
        ("transitionBound", "Integer", "Theorem~1 bound.", True),
@@ -231,20 +231,20 @@ struct("Transition", "One transition of the session.",
        ("target", "Name", "The step or action it applied to.", False),
        ("detail", "String", "Additional information, e.g. the executor or failure.", False),
        ("at", "DateTime", "When it fired.", True))
-enum("Rule", "Transition rules: the eight rules of~\\cite{varga2026} and the extensions (\\texttt{x-}).",
-     ("A-Start", "An action becomes active after its predecessor completed."),
-     ("S-Enable", "A step becomes enabled when its action is active and its predecessors completed."),
-     ("S-Bind", "An enabled step is bound to a provider (and executor) and becomes running."),
-     ("S-Done", "A running step completed; its result is stored."),
-     ("A-Finish", "Every step of an action completed."),
-     ("Z-Close", "Every action completed: the session is completed."),
-     ("S-FailBind", "No executor/provider could be bound: the session fails."),
-     ("S-FailInvoke", "The invocation failed: the session fails."),
-     ("x-rebind", "Extension: after \\texttt{ERROR} the step is enabled again and the executor that failed is excluded."),
-     ("x-retry", "Extension: after \\texttt{ERROR} the step is enabled again for the same executor, once its backoff is over."),
-     ("x-abort", "Extension: the session was aborted."),
-     ("x-timeout", "Extension: a step exceeded its timeout."),
-     ("x-skip", "Extension: a step was skipped because no guarded transition to it was taken."))
+enum("Rule", "Transition rules as they appear in a trace: the eight rules of~\\cite{varga2026} and the extensions (\\texttt{X\\_}). The texts of this document set write them as in the model, e.g. S-Enable and x-rebind.",
+     ("A\\_START", "An action becomes active after its predecessor completed."),
+     ("S\\_ENABLE", "A step becomes enabled when its action is active and its predecessors completed."),
+     ("S\\_BIND", "An enabled step is bound to a provider (and executor) and becomes running."),
+     ("S\\_DONE", "A running step completed; its result is stored."),
+     ("A\\_FINISH", "Every step of an action completed."),
+     ("Z\\_CLOSE", "Every action completed: the session is completed."),
+     ("S\\_FAIL\\_BIND", "No executor/provider could be bound: the session fails."),
+     ("S\\_FAIL\\_INVOKE", "The invocation failed: the session fails."),
+     ("X\\_REBIND", "Extension: after \\texttt{ERROR} the step is enabled again and the executor that failed is excluded."),
+     ("X\\_RETRY", "Extension: after \\texttt{ERROR} the step is enabled again for the same executor, once its backoff is over."),
+     ("X\\_ABORT", "Extension: the session was aborted."),
+     ("X\\_TIMEOUT", "Extension: a step exceeded its timeout."),
+     ("X\\_SKIP", "Extension: a step was skipped because no guarded transition to it was taken."))
 
 # ---------------------------------------------------------------- workflowWorkItem / workflowExecution
 struct("WorkItem", "One attempt to run one step: what an executor needs to run it.",
@@ -278,7 +278,7 @@ enum("ReportStatus", "Executor reports and the rules they cause.",
      ("SUCCESS", "The provider answered (S-Done)."),
      ("ERROR", "Recoverable failure: x-rebind or x-retry when the step's retry policy allows another attempt, otherwise the session fails (S-FailInvoke, or S-FailBind when the step was not bound yet)."),
      ("FATAL\\_ERROR", "Unrecoverable failure: S-FailInvoke, or S-FailBind when the step was not bound yet."),
-     ("ABORTED", "Acknowledges an abort; by itself it does not change the session."))
+     ("ABORTED", "Acknowledges an abort. On an active work item the executor stopped on its own, and the session fails."))
 struct("WorkItemRef", "Identifies a work item.",
        ("workItemId", "WorkItemId", "The work item.", True))
 struct("ExecutorInfo", "What an executor declares about itself.",
@@ -298,7 +298,11 @@ struct("ExecutionState", "State of a work item on an executor.",
 enum("ExecutorState", "Local state of a work item on an executor. The authoritative state is held by the WorkflowManager.",
      ("ACCEPTED", "Received, not yet started."),
      ("RUNNING", "Being run."),
-     ("DONE", "Run finished and reported (whatever the report was)."),
+     ("DONE", "Run finished with \\texttt{SUCCESS}."),
+     ("BIND\\_FAILED", "Run ended with this report."),
+     ("ERROR", "Run ended with this report."),
+     ("FATAL\\_ERROR", "Run ended with this report."),
+     ("ABORTED", "Run aborted."),
      ("UNKNOWN", "The executor does not know the work item, e.g. after a restart."))
 
 # ---------------------------------------------------------------- workflowContext

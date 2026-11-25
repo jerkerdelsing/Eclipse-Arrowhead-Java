@@ -185,13 +185,13 @@ stop it with \oref{abort}. \oref{query} lists sessions, e.g. all \texttt{running
                r"Returns the run: every transition, $\xi$, $\beta$, $\varepsilon$, and whether the run stayed within the proven model.",
                "200 OK.", [E404], params=[("id", "path", "SessionId", "Session.")],
                resp="""{ "sessionId": 42, "status": "completed",
-  "trace": [ { "seq": 1, "rule": "S-Enable", "target": "read", "at": "..." },
-             { "seq": 2, "rule": "S-Bind", "target": "read", "detail": "WfeA", "at": "..." },
+  "trace": [ { "seq": 1, "rule": "S_ENABLE", "target": "read", "at": "..." },
+             { "seq": 2, "rule": "S_BIND", "target": "read", "detail": "WfeA", "at": "..." },
              ... ,
-             { "seq": 14, "rule": "Z-Close", "at": "..." } ],
+             { "seq": 14, "rule": "Z_CLOSE", "at": "..." } ],
   "results": { "read": { "temperature": 21.5 }, "evaluate": { "heat": true }, ... },
   "bindings": { "read": { "provider": "WfEquipment", ... } },
-  "executorAssignment": { "read": "WfeA", ... }, "runner": { "read": "WfeA", ... },
+  "executorAssignment": {}, "runner": { "read": "WfeA", ... },
   "modelTransitions": 14, "transitionBound": 17, "withinModel": false }"""),
         ],
         structs=["StartSessionRequest", "Session", "SessionList", "SessionRef", "SessionFilter", "Trace"],
@@ -216,7 +216,7 @@ then reports \texttt{SUCCESS}, \texttt{ERROR} or \texttt{FATAL\_ERROR}. Push-mod
 through \texttt{workflowExecution.start} and report the same way.""",
         delimitations=r"""\begin{itemize}
 \item The claim is atomic: one executor per work item attempt. Only the holder (or a sysop) may report on a work item.
-\item A published work item that nobody claims within \texttt{workflow.pull.claim-timeout} (default 300\,s) fails the step with S-FailBind. A claimed work item is limited only by the step's \texttt{timeoutSeconds} (extension x-timeout, counted from the creation of the work item).
+\item A published work item that nobody claims within \texttt{workflow.pull.claim-timeout} (default 300\,s) fails the step with S-FailBind. A held work item is limited by the step's \texttt{timeoutSeconds} (extension x-timeout, counted from its creation), when the policy sets one, and by the liveness check: the WorkflowManager asks the executor with \texttt{workflowExecution.get-status} whether it still runs it.
 \item A report on a work item that is no longer active (already done or failed), or that waits for its retry (\texttt{RETRY\_WAIT}), is refused (409). A late report on an aborted work item is accepted and ignored.
 \end{itemize}""",
         ops=[
@@ -230,7 +230,7 @@ through \texttt{workflowExecution.start} and report the same way.""",
   "input": { "temperature": "${result.read.temperature}", "threshold": "${param.threshold}" },
   "parameters": { "threshold": 23 }, "dependencyResults": { "read": { "temperature": 21.5 } } }"""),
             op("report", "POST", "/report", "WorkItemReport", "",
-               r"Reports on a held work item. \texttt{BOUND} completes S-Bind; \texttt{SUCCESS} fires S-Done with the stored result; \texttt{BIND\_FAILED} tries the next executor or fires S-FailBind; \texttt{ERROR} causes x-rebind or x-retry while the step's retry policy allows another attempt, and otherwise fails the session; \texttt{FATAL\_ERROR} fails the session; \texttt{ABORTED} acknowledges an abort. A failure is recorded as S-FailInvoke when the step was bound and as S-FailBind when it was not.",
+               r"Reports on a held work item. \texttt{BOUND} completes S-Bind; \texttt{SUCCESS} fires S-Done with the stored result; \texttt{BIND\_FAILED} tries the next executor or fires S-FailBind; \texttt{ERROR} causes x-rebind or x-retry while the step's retry policy allows another attempt, and otherwise fails the session; \texttt{FATAL\_ERROR} fails the session; \texttt{ABORTED} acknowledges an abort, and fails the session when the executor stopped on its own. A failure is recorded as S-FailInvoke when the step was bound and as S-FailBind when it was not.",
                "200 OK, empty body.",
                [("400", r"\texttt{workItemId} or \texttt{status} missing, or unknown status."),
                 ("403", "The work item is held by another executor."),
@@ -375,7 +375,7 @@ returns at once; the result arrives later as a report. The WorkflowManager calls
 aborted or a step times out.""",
         delimitations=r"""\begin{itemize}
 \item Only the configured WorkflowManager (\texttt{workflow.manager.system-name}) or a sysop may start or abort work items (403 otherwise).
-\item The executor keeps no durable state; after a restart \oref{get-status} answers \texttt{UNKNOWN} and the step timeout applies when the step's policy sets one. Without it the WorkflowManager keeps waiting for the report.
+\item The executor keeps no durable state; after a restart \oref{get-status} answers \texttt{UNKNOWN} and the WorkflowManager then treats the work item as lost (see \oref{get-status}).
 \item Equipment is invoked through adapters; the reference implementation has the generic HTTP/HTTPS JSON adapter only.
 \item An executor never consumes services outside its local cloud unless the step's policy allows it (\texttt{localCloudOnly = false}).
 \end{itemize}""",
@@ -393,7 +393,7 @@ aborted or a step times out.""",
                [("403", "The caller is not the configured WorkflowManager.")],
                req="""{ "workItemId": "5d2c0b1e-...", "sessionId": 42, "reason": "session aborted" }"""),
             op("get-status", "GET", "/status/{workItemId}", "WorkItemRef", "ExecutionState",
-               "Returns the executor's local state of a work item.", "200 OK.", [],
+               r"Returns the executor's local state of a work item. The WorkflowManager uses it as liveness check: a held work item is lost when two checks in a row find it neither \texttt{ACCEPTED} nor \texttt{RUNNING}, or when the executor cannot be reached or is no longer registered for \texttt{workflow.executor.liveness.lost-after-seconds}. A lost item that is not bound goes to the next executor; a bound one is handled like \texttt{ERROR}.", "200 OK.", [],
                params=[("workItemId", "path", "WorkItemId", "Work item.")],
                resp="""{ "workItemId": "5d2c0b1e-...", "state": "RUNNING" }"""),
         ],

@@ -186,8 +186,8 @@ between work items.
 
 \subsubsection{Stateful or stateless}
 Stateless with respect to workflows: the authoritative state is in the WorkflowManager. After a restart
-unknown work items are reported as \texttt{UNKNOWN} by \texttt{get-status}; the WorkflowManager fails the step when its
-\texttt{timeout\allowbreak{}Seconds} is exceeded.
+unknown work items are reported as \texttt{UNKNOWN} by \texttt{get-status}, which tells the
+WorkflowManager that the work is lost.
 
 \subsection{Important Delimitations}
 \label{sec:delimitations}

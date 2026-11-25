@@ -237,7 +237,7 @@ temperature switch fails. The WorkflowManager reports the count and the bound fo
 SUCCESS & S-Done & Continue. \\ \hline
 FATAL\_ERROR & S-FailInvoke & Session failed (absorbing); S-FailBind when the step was not bound yet. \\ \hline
 ERROR & extension x-rebind or x-retry & Under a retry policy: exclude the executor and bind again (\texttt{rebind}), or dispatch to the same executor after a backoff (\texttt{retry}); otherwise as FATAL\_ERROR. \\ \hline
-ABORTED & -- & Acknowledges an abort (extension x-abort has already failed the session). \\ \hline
+ABORTED & -- & Acknowledges an abort (extension x-abort has already failed the session); unasked for, the session fails as with FATAL\_ERROR. \\ \hline
 BOUND & completes S-Bind & Executor may invoke. \\ \hline
 BIND\_FAILED & S-Bind not possible & Next executor, otherwise S-FailBind. \\ \hline
 \end{longtable}
@@ -514,7 +514,7 @@ Until then the SoS interoperates with Go and Rust \emph{core} systems only throu
 \section{Verification}
 \label{sec:verification}
 \begin{itemize}
-\item Unit tests: 35 model, 15 WorkflowManager, 7 WorkflowExecutor and 7 WorkflowConfigurator tests; 12 Node tests of the
+\item Unit tests: 35 model, 22 WorkflowManager, 7 WorkflowExecutor and 7 WorkflowConfigurator tests; 12 Node tests of the
 editor model (all passed on 2026-11-24, with the embedded database).
 \item Smoke test in an isolated Docker network with the embedded database: 18/18 checks on 2026-11-24, including three concurrent forklift sessions without
 overlapping tool use and lease expiry after a blocked AGV.

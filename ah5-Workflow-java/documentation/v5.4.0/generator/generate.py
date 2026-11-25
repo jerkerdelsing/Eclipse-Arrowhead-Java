@@ -19,8 +19,8 @@ RETRY = "extension x-retry, extension names and retry states as implemented"
 AMENDMENTS = [
     ("Workflow-v5.4.0-SoSD.tex", DATABASE + "; data ownership."),
     ("Workflow-v5.4.0-SoSDD.tex", DATABASE + "; reaction to ERROR, ABORTED and unreachable executors; verification status."),
-    ("WorkflowManager-v5.4.0-SysD.tex", DATABASE + "; " + RETRY + "; delimitations."),
-    ("WorkflowManager-v5.4.0-SysDD.tex", DATABASE + "; " + RETRY + "; claim timeout, defaults and verification status."),
+    ("WorkflowManager-v5.4.0-SysD.tex", DATABASE + "; " + RETRY + "; liveness check of executors; delimitations."),
+    ("WorkflowManager-v5.4.0-SysDD.tex", DATABASE + "; " + RETRY + "; liveness check of executors; claim timeout, defaults and verification status."),
     ("WorkflowExecutor-v5.4.0-SysD.tex", "Data protection, log storage and behaviour after a restart."),
     ("WorkflowExecutor-v5.4.0-SysDD.tex", "Verification status."),
     ("WorkflowConfigurator-v5.4.0-SysD.tex", "Data protection; recipe summaries and the retry policy in the editor."),
@@ -28,9 +28,9 @@ AMENDMENTS = [
     ("workflowRecipe", "Retry policy as implemented."),
     ("workflowConfiguration", "Retry policy as implemented."),
     ("workflowProduct", "Retry policy as implemented."),
-    ("workflowInstance", "Extension names; rule x-retry."),
-    ("workflowWorkItem", "Claim timeout; reactions to the reports; waiting for a retry."),
-    ("workflowExecution", "Retry policy as implemented; behaviour after a restart."),
+    ("workflowInstance", "Extension names; rule names as on the wire; rule x-retry."),
+    ("workflowWorkItem", "Claim timeout; reactions to the reports; waiting for a retry; lost executors."),
+    ("workflowExecution", "Retry policy; executor states; get-status as liveness check."),
     ("workflowManagement", "Work item states of the retry extension."),
 ]
 

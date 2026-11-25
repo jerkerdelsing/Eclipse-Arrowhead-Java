@@ -168,7 +168,7 @@ Success & 200 OK with the work item; 204 No Content when none is open. \\ \hline
 \end{lstlisting}
 
 \osubsection{report}{POST}{/workflowmanager/work-item/report}{WorkItemReport}{}
-Reports on a held work item. \texttt{BOUND} completes S-Bind; \texttt{SUCCESS} fires S-Done with the stored result; \texttt{BIND\_FAILED} tries the next executor or fires S-FailBind; \texttt{ERROR} causes x-rebind or x-retry while the step's retry policy allows another attempt, and otherwise fails the session; \texttt{FATAL\_ERROR} fails the session; \texttt{ABORTED} acknowledges an abort. A failure is recorded as S-FailInvoke when the step was bound and as S-FailBind when it was not.
+Reports on a held work item. \texttt{BOUND} completes S-Bind; \texttt{SUCCESS} fires S-Done with the stored result; \texttt{BIND\_FAILED} tries the next executor or fires S-FailBind; \texttt{ERROR} causes x-rebind or x-retry while the step's retry policy allows another attempt, and otherwise fails the session; \texttt{FATAL\_ERROR} fails the session; \texttt{ABORTED} acknowledges an abort, and fails the session when the executor stopped on its own. A failure is recorded as S-FailInvoke when the step was bound and as S-FailBind when it was not.
 
 {\small
 \begin{longtable}{|p{2.0cm}|p{13.8cm}|}
@@ -319,7 +319,7 @@ Executor reports and the rules they cause.
 \texttt{SUCCESS} & The provider answered (S-Done). \\ \hline
 \texttt{ERROR} & Recoverable failure: x-rebind or x-retry when the step's retry policy allows another attempt, otherwise the session fails (S-FailInvoke, or S-FailBind when the step was not bound yet). \\ \hline
 \texttt{FATAL\_ERROR} & Unrecoverable failure: S-FailInvoke, or S-FailBind when the step was not bound yet. \\ \hline
-\texttt{ABORTED} & Acknowledges an abort; by itself it does not change the session. \\ \hline
+\texttt{ABORTED} & Acknowledges an abort. On an active work item the executor stopped on its own, and the session fails. \\ \hline
 \end{longtable}
 }
 
@@ -333,7 +333,7 @@ Extensions x-rebind and x-retry.
 \rowcolor{gray!33} Field & Type & Mandatory & Description \\ \hline
 \endhead
 \texttt{maxAttempts} & \pref{Integer} & no & Maximum attempts of the step in one session, counting every work item of the step; at least 1, default 1 (no further attempt). \\ \hline
-\texttt{onError} & \mref{OnError} & no & What an \texttt{ERROR} report causes while attempts remain. State it explicitly: the recipe schema names \texttt{rebind} as default, but the Java WorkflowManager fails the session when it is absent. \\ \hline
+\texttt{onError} & \mref{OnError} & no & What an \texttt{ERROR} report causes while attempts remain.; default \texttt{rebind}. \\ \hline
 \texttt{backoff\allowbreak{}Seconds} & \pref{Duration} & no & Pause before a same-executor retry (\texttt{onError} = \texttt{retry}); 0--600, default 1. \\ \hline
 \end{longtable}
 }
@@ -503,7 +503,7 @@ interfaces (ServiceRegistry, Authentication, ConsumerAuthorization, DynamicServi
 \noindent\begin{tabularx}{\textwidth}{| p{1cm} | p{2.2cm} | p{1.6cm} | X | p{3.6cm} |} \hline
 \rowcolor{gray!33} No. & Date & Version & Subject of Amendments & Author \\ \hline
 1 & 2026-11-23 & \arrowversion & Initial edition: interface design description of workflowWorkItem over HTTP/TLS/JSON, written from the Java reference implementation (ah5-Workflow-java). & Documentation maintenance \\ \hline
-2 & 2026-11-24 & \arrowversion & Claim timeout; reactions to the reports; waiting for a retry. & Documentation maintenance \\ \hline
+2 & 2026-11-24 & \arrowversion & Claim timeout; reactions to the reports; waiting for a retry; lost executors. & Documentation maintenance \\ \hline
 \end{tabularx}
 
 \subsection{Quality Assurance}
