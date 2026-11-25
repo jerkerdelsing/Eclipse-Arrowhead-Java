@@ -16,6 +16,7 @@ import eu.arrowhead.common.SystemInfo;
 import eu.arrowhead.common.http.HttpService;
 import eu.arrowhead.common.http.HttpUtilities;
 import eu.arrowhead.workflow.wire.AbortRequest;
+import eu.arrowhead.workflow.wire.ExecutionState;
 import eu.arrowhead.workflow.wire.WorkItem;
 import eu.arrowhead.workflow.wire.WorkflowServices;
 import eu.arrowhead.workflowmanager.service.ExecutorDirectory.ExecutorEndpoint;
@@ -39,9 +40,22 @@ public class HttpExecutorGateway implements ExecutorGateway {
 		send(executor, WorkflowServices.EXECUTION_ABORT_PATH, request);
 	}
 
+	@Override
+	public ExecutionState status(final ExecutorEndpoint executor, final String workItemId) {
+		final String path = WorkflowServices.EXECUTION_STATUS_PATH.replace("{workItemId}", workItemId);
+		return httpService.sendRequest(uri(executor, path), HttpMethod.GET, ExecutionState.class, null, null, headers());
+	}
+
 	private void send(final ExecutorEndpoint executor, final String path, final Object payload) {
-		final UriComponents uri = HttpUtilities.createURI(executor.scheme(), executor.address(), executor.port(), executor.basePath() + path);
+		httpService.sendRequest(uri(executor, path), HttpMethod.POST, Void.class, payload, null, headers());
+	}
+
+	private static UriComponents uri(final ExecutorEndpoint executor, final String path) {
+		return HttpUtilities.createURI(executor.scheme(), executor.address(), executor.port(), executor.basePath() + path);
+	}
+
+	private Map<String, String> headers() {
 		final String header = HttpUtilities.calculateAuthorizationHeader(sysInfo);
-		httpService.sendRequest(uri, HttpMethod.POST, Void.class, payload, null, header == null ? Map.of() : Map.of(HttpHeaders.AUTHORIZATION, header));
+		return header == null ? Map.of() : Map.of(HttpHeaders.AUTHORIZATION, header);
 	}
 }

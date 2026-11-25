@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,7 @@ import eu.arrowhead.common.exception.ForbiddenException;
 import eu.arrowhead.workflow.model.session.Markings.Rule;
 import eu.arrowhead.workflow.model.session.WorkflowSession;
 import eu.arrowhead.workflow.wire.AbortRequest;
+import eu.arrowhead.workflow.wire.ExecutionState;
 import eu.arrowhead.workflow.wire.ClaimRequest;
 import eu.arrowhead.workflow.wire.LeaseRequest;
 import eu.arrowhead.workflow.wire.LeaseStatus;
@@ -99,6 +101,8 @@ class WorkflowManagerTest {
 		registry.add("sysmonitor.enabled", () -> "false");
 		registry.add("workflow.standalone", () -> "true");
 		registry.add("workflow.pull.claim-timeout", () -> "2");
+		registry.add("workflow.executor.liveness.check-seconds", () -> "1");
+		registry.add("workflow.executor.liveness.lost-after-seconds", () -> "3");
 		// recipes whose executors are absent must still register here, to exercise S-FailBind with asg(z, s) = ∅
 		registry.add("workflow.validator.catalogue-check", () -> "false");
 		registry.add("workflow.executors", () -> "WfeAgv|http://127.0.0.1:18001|agv|*;WfeA|http://127.0.0.1:18002||*;WfeB|http://127.0.0.1:18003||*");
@@ -113,6 +117,8 @@ class WorkflowManagerTest {
 		WorkflowEngine engine;
 
 		volatile BiFunction<String, WorkItem, WorkItemReport> behaviour;
+		/** workflowExecution.get-status of the simulated executors: executor name -> state, or an exception. */
+		volatile Function<String, String> liveness = executor -> "RUNNING";
 		final Map<String, String> ranOn = new ConcurrentHashMap<>();
 		final Set<String> aborted = ConcurrentHashMap.newKeySet();
 
@@ -124,17 +130,27 @@ class WorkflowManagerTest {
 				public void start(final ExecutorEndpoint executor, final WorkItem item) {
 					new Thread(() -> {
 						final WorkItemReport outcome = behaviour.apply(executor.name(), item);
+						if (outcome == null) {
+							return; // the executor disappears before binding
+						}
 						if (outcome.status() != ReportStatus.BIND_FAILED) {
 							engine.report(executor.name(), false, new WorkItemReport(item.workItemId(), ReportStatus.BOUND, F.objectNode().put("provider", "p-" + item.step()), null, null));
 							ranOn.put(item.sessionId() + "/" + item.step(), executor.name());
 						}
-						engine.report(executor.name(), false, outcome);
+						if (outcome.status() != ReportStatus.BOUND) { // BOUND: the executor disappears after binding
+							engine.report(executor.name(), false, outcome);
+						}
 					}).start();
 				}
 
 				@Override
 				public void abort(final ExecutorEndpoint executor, final AbortRequest request) {
 					aborted.add(request.workItemId());
+				}
+
+				@Override
+				public ExecutionState status(final ExecutorEndpoint executor, final String workItemId) {
+					return new ExecutionState(workItemId, liveness.apply(executor.name()), null);
 				}
 			};
 		}
@@ -147,6 +163,7 @@ class WorkflowManagerTest {
 	@BeforeEach
 	void defaults() throws Exception {
 		executors.behaviour = (executor, item) -> success(item);
+		executors.liveness = executor -> "RUNNING";
 		register("shared-tool-tightening.recipe.json");
 		register("temperature-control.recipe.json");
 	}
@@ -436,6 +453,99 @@ class WorkflowManagerTest {
 		assertEquals("completed", z.status().name(), z::failure);
 		assertEquals(List.of(polls.get(0), polls.get(0)), polls);
 		assertEquals(List.of(polls.get(0)), holds, "the occupying step must have taken the retrying executor, else the test proves nothing");
+	}
+
+	@Test
+	void aRetryPolicyWithoutOnErrorRebinds() throws Exception {
+		final List<Attempt> attempts = flaky("flaky-default", "{\"maxAttempts\":2}", 1);
+		final WorkflowSession z = awaitEnd(start("flaky-default", null, null));
+		assertEquals("completed", z.status().name(), z::failure);
+		assertEquals(2, attempts.size());
+		assertEquals(1, count(z, Rule.X_REBIND));
+	}
+
+	//-------------------------------------------------------------------------------------------------
+	// executors that stop on their own or disappear
+
+	/** One step "poll"; the first attempt ends with firstOutcome (null: nothing is reported), later attempts succeed. */
+	private List<String> vanishing(final String name, final String policy, final Function<WorkItem, WorkItemReport> firstOutcome) throws Exception {
+		recipes.register(json.readTree("""
+				{"name":"%s","version":"1.0.0","firstAction":"a","actions":[{"name":"a","steps":[
+				 {"name":"poll","service":{"serviceDefinition":"poll"}%s}]}]}""".formatted(name, policy)), "test");
+		final List<String> tried = Collections.synchronizedList(new ArrayList<>());
+		executors.behaviour = (executor, item) -> {
+			tried.add(executor);
+			return tried.size() == 1 ? firstOutcome.apply(item) : success(item);
+		};
+		return tried;
+	}
+
+	private static WorkItemReport boundOnly(final WorkItem item) {
+		return new WorkItemReport(item.workItemId(), ReportStatus.BOUND, F.objectNode().put("provider", "p"), null, null);
+	}
+
+	private static final String REBIND = ",\"policy\":{\"retry\":{\"maxAttempts\":2,\"onError\":\"rebind\"}}";
+
+	@Test
+	void anExecutorThatAbortsOnItsOwnFailsTheSession() throws Exception {
+		vanishing("self-abort", "", item -> new WorkItemReport(item.workItemId(), ReportStatus.ABORTED, null, null, "stopped at the executor"));
+		final WorkflowSession z = awaitEnd(start("self-abort", null, null));
+		assertEquals("failed", z.status().name());
+		assertEquals(Rule.S_FAIL_INVOKE, z.trace().get(z.trace().size() - 1).rule());
+		assertTrue(z.failure().contains("ABORTED"), z::failure);
+	}
+
+	@Test
+	void aBoundStepOfAnExecutorThatForgotItFails() throws Exception {
+		vanishing("forgotten", "", WorkflowManagerTest::boundOnly);
+		executors.liveness = executor -> "UNKNOWN";
+		final WorkflowSession z = awaitEnd(start("forgotten", null, null));
+		assertEquals("failed", z.status().name());
+		assertEquals(Rule.S_FAIL_INVOKE, z.trace().get(z.trace().size() - 1).rule());
+	}
+
+	@Test
+	void aLostExecutorFollowsTheRetryPolicy() throws Exception {
+		final List<String> tried = vanishing("forgotten-rebind", REBIND, WorkflowManagerTest::boundOnly);
+		executors.liveness = executor -> "UNKNOWN";
+		final WorkflowSession z = awaitEnd(start("forgotten-rebind", null, null));
+		assertEquals("completed", z.status().name(), z::failure);
+		assertEquals(2, tried.size());
+		assertFalse(tried.get(0).equals(tried.get(1)), tried::toString);
+		assertEquals(1, count(z, Rule.X_REBIND));
+	}
+
+	@Test
+	void aWorkItemLostBeforeBindingGoesToTheNextExecutor() throws Exception {
+		final List<String> tried = vanishing("lost-unbound", "", item -> null);
+		executors.liveness = executor -> "UNKNOWN";
+		final WorkflowSession z = awaitEnd(start("lost-unbound", null, null));
+		assertEquals("completed", z.status().name(), z::failure);
+		assertEquals(2, tried.size());
+		assertFalse(tried.get(0).equals(tried.get(1)), tried::toString);
+		assertTrue(z.extensions().isEmpty(), z.extensions()::toString);
+	}
+
+	@Test
+	void anUnreachableExecutorIsLostOnlyAfterTheGracePeriod() throws Exception {
+		vanishing("unreachable", "", WorkflowManagerTest::boundOnly);
+		executors.liveness = executor -> { throw new eu.arrowhead.common.exception.ExternalServerError("connection refused"); };
+		final long begin = System.currentTimeMillis();
+		final WorkflowSession z = awaitEnd(start("unreachable", null, null));
+		assertEquals("failed", z.status().name());
+		assertTrue(System.currentTimeMillis() - begin >= 3000);
+	}
+
+	@Test
+	void aRunningStepOrARefusedStatusCallIsNotLost() throws Exception {
+		vanishing("long-running", "", WorkflowManagerTest::boundOnly);
+		final long running = start("long-running", null, null);
+		sleep(5000);
+		assertEquals("running", engine.get(running).getStatus());
+		executors.liveness = executor -> { throw new ForbiddenException("no grant for get-status"); };
+		sleep(5000);
+		assertEquals("running", engine.get(running).getStatus());
+		engine.abort(running, "LineController", false, "test over");
 	}
 
 	private static void sleep(final long millis) {

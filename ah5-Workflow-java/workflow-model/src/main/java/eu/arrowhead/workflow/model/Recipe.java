@@ -170,6 +170,11 @@ public record Recipe(
 			return maxAttempts == null ? 1 : maxAttempts;
 		}
 
+		/** The recipe schema's default is rebind. */
+		public OnError onErrorOrDefault() {
+			return onError == null ? OnError.rebind : onError;
+		}
+
 		public long backoffMillis() {
 			return Math.round((backoffSeconds == null ? DEFAULT_BACKOFF_SECONDS : backoffSeconds) * 1000);
 		}

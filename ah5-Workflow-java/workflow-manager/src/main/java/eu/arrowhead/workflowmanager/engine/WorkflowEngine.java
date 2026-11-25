@@ -38,6 +38,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.NullNode;
 
 import eu.arrowhead.common.Utilities;
+import eu.arrowhead.common.exception.AuthException;
 import eu.arrowhead.common.exception.DataNotFoundException;
 import eu.arrowhead.common.exception.ForbiddenException;
 import eu.arrowhead.common.exception.InvalidParameterException;
@@ -51,6 +52,7 @@ import eu.arrowhead.workflow.model.session.SessionSnapshot;
 import eu.arrowhead.workflow.model.session.WorkflowSession;
 import eu.arrowhead.workflow.wire.AbortRequest;
 import eu.arrowhead.workflow.wire.ClaimRequest;
+import eu.arrowhead.workflow.wire.ExecutionState;
 import eu.arrowhead.workflow.wire.PutResultRequest;
 import eu.arrowhead.workflow.wire.ReportStatus;
 import eu.arrowhead.workflow.wire.WorkItem;
@@ -130,6 +132,12 @@ public class WorkflowEngine {
 	@Value(WorkflowManagerConstants.$CLAIM_TIMEOUT_WD)
 	private long claimTimeoutSeconds;
 
+	@Value(WorkflowManagerConstants.$LIVENESS_CHECK_SECONDS_WD)
+	private long livenessCheckSeconds;
+
+	@Value(WorkflowManagerConstants.$LIVENESS_LOST_AFTER_SECONDS_WD)
+	private long livenessLostAfterSeconds;
+
 	@Value(WorkflowManagerConstants.$LEASE_RELEASE_ON_FAILURE_WD)
 	private boolean releaseLeasesOnFailure;
 
@@ -137,6 +145,19 @@ public class WorkflowEngine {
 	private String workstationId;
 
 	private final Map<Long, Object> locks = new ConcurrentHashMap<>();
+
+	/** Liveness of held work items (uid): when the executor first answered that it does not run it, or could not be reached. */
+	private final Map<String, Suspicion> suspicions = new ConcurrentHashMap<>();
+	/** Executors being asked at the moment; one question round per executor at a time. */
+	private final Set<String> probing = ConcurrentHashMap.newKeySet();
+	private volatile long lastLivenessCheck;
+
+	private record Suspicion(boolean reachable, long sinceMillis) {
+	}
+
+	/** Outcome of an ERROR: nothing more to do (the session failed), dispatch again now, or dispatch again after a backoff. */
+	private static final long ERROR_FAILED = -2;
+	private static final long ERROR_REDRIVE = -1;
 
 	/** Loaded session: record, recipe, state z and ρ. */
 	private record Ctx(SessionRecord record, Recipe recipe, WorkflowSession z, JsonNode parameters) {
@@ -309,28 +330,18 @@ public class WorkflowEngine {
 				redrive = true;
 			}
 			case ERROR -> {
-				item.setState(State.FAILED);
-				final Recipe.Retry retry = st.policyOrDefault().retry();
-				if (retry != null && retry.onError() == Recipe.Retry.OnError.retry && item.getAttempt() < retry.maxAttemptsOrOne()) {
-					// x-retry: same executor after the backoff; RETRY_WAIT keeps the step from being dispatched meanwhile
-					item.setState(State.RETRY_WAIT);
-					c.z().retry(step, "ERROR from " + executor + ": " + report.message());
-					worklog.log(sessionId, c.recipe().key(), step, "x-retry on " + executor + " in " + retry.backoffMillis() + " ms after ERROR (attempt " + item.getAttempt() + ")",
-							report.message());
-					retryAfterMillis = retry.backoffMillis();
-				} else if (retry != null && retry.onError() == Recipe.Retry.OnError.rebind && item.getAttempt() < retry.maxAttemptsOrOne()) {
-					c.z().rebind(step, "ERROR from " + executor + ": " + report.message());
-					worklog.log(sessionId, c.recipe().key(), step, "x-rebind after ERROR from " + executor + " (attempt " + item.getAttempt() + ")", report.message());
-					redrive = true;
-				} else {
-					fail(c, step, "ERROR from " + executor + ": " + report.message());
-				}
+				retryAfterMillis = error(c, item, st, "ERROR from " + executor + ": " + report.message());
+				redrive = retryAfterMillis == ERROR_REDRIVE;
 			}
 			case FATAL_ERROR -> {
 				item.setState(State.FAILED);
 				fail(c, step, "FATAL_ERROR from " + executor + ": " + report.message());
 			}
-			case ABORTED -> item.setState(State.ABORTED);
+			case ABORTED -> {
+				// an abort by the session or a timeout has ended the work item before: here the executor stopped on its own
+				item.setState(State.ABORTED);
+				fail(c, step, "ABORTED by " + executor + ": " + report.message());
+			}
 			default -> throw new InvalidParameterException("Unknown status " + report.status());
 			}
 			items.saveAndFlush(item);
@@ -344,9 +355,36 @@ public class WorkflowEngine {
 			worker.execute(() -> drive(sessionId));
 		}
 		if (retryAfterMillis >= 0) {
-			final long itemId = found.getId();
-			CompletableFuture.delayedExecutor(retryAfterMillis, TimeUnit.MILLISECONDS, worker::execute).execute(() -> releaseRetry(itemId));
+			releaseRetryAfter(found.getId(), retryAfterMillis);
 		}
+	}
+
+	/** ERROR of an attempt: x-retry or x-rebind while the step's retry policy allows another attempt, otherwise the session fails. */
+	private long error(final Ctx c, final WorkItemRecord item, final Step st, final String reason) {
+		final String step = item.getStepName();
+		final String executor = item.getExecutorName();
+		final Recipe.Retry retry = st.policyOrDefault().retry();
+		item.setState(State.FAILED);
+		if (retry != null && item.getAttempt() < retry.maxAttemptsOrOne()) {
+			if (retry.onErrorOrDefault() == Recipe.Retry.OnError.retry) {
+				// same executor after the backoff; RETRY_WAIT keeps the step from being dispatched meanwhile
+				item.setState(State.RETRY_WAIT);
+				c.z().retry(step, reason);
+				worklog.log(item.getSessionId(), c.recipe().key(), step, "x-retry on " + executor + " in " + retry.backoffMillis() + " ms after ERROR (attempt " + item.getAttempt() + ")", reason);
+				return retry.backoffMillis();
+			}
+			if (retry.onErrorOrDefault() == Recipe.Retry.OnError.rebind) {
+				c.z().rebind(step, reason);
+				worklog.log(item.getSessionId(), c.recipe().key(), step, "x-rebind after ERROR from " + executor + " (attempt " + item.getAttempt() + ")", reason);
+				return ERROR_REDRIVE;
+			}
+		}
+		fail(c, step, reason);
+		return ERROR_FAILED;
+	}
+
+	private void releaseRetryAfter(final long itemId, final long millis) {
+		CompletableFuture.delayedExecutor(millis, TimeUnit.MILLISECONDS, worker::execute).execute(() -> releaseRetry(itemId));
 	}
 
 	/** Ends the backoff of a RETRY_WAIT attempt (x-retry) and dispatches the step again. Idempotent. */
@@ -485,6 +523,120 @@ public class WorkflowEngine {
 				save(c);
 			}
 			outbound.forEach(this::runQuietly);
+		}
+	}
+
+	//=================================================================================================
+	// liveness of the executors
+
+	/**
+	 * Asks every executor whether it still runs the work items it holds. Without this, a step whose executor was restarted,
+	 * crashed or could not deliver its report would stay running forever unless its policy sets timeoutSeconds. A work item
+	 * is lost when its executor says twice in a row that it does not run it, or cannot be reached (or is no longer
+	 * registered) for livenessLostAfterSeconds. A refused question (no grant) or a failed discovery proves nothing.
+	 */
+	@Scheduled(fixedDelay = 1000, initialDelay = 5000)
+	public void checkExecutors() {
+		final long now = System.currentTimeMillis();
+		if (livenessCheckSeconds <= 0 || now - lastLivenessCheck < livenessCheckSeconds * 1000) {
+			return;
+		}
+		lastLivenessCheck = now;
+		final ZonedDateTime before = Utilities.utcNow().minusSeconds(livenessCheckSeconds);
+		final List<WorkItemRecord> held = items.findAllByStateInOrderByIdAsc(List.of(State.DISPATCHED.name(), State.CLAIMED.name(), State.BOUND.name()));
+		suspicions.keySet().retainAll(held.stream().map(WorkItemRecord::getUid).collect(Collectors.toSet()));
+		// a work item that changed just now may still be on its way to or from the executor
+		held.stream().filter(i -> i.getExecutorName() != null && i.getUpdatedAt().isBefore(before)).collect(Collectors.groupingBy(WorkItemRecord::getExecutorName))
+				.forEach((executor, its) -> {
+					if (probing.add(executor)) {
+						try {
+							worker.execute(() -> {
+								try {
+									probe(executor, its);
+								} finally {
+									probing.remove(executor);
+								}
+							});
+						} catch (final RuntimeException ex) {
+							probing.remove(executor);
+							logger.warn("Liveness check of {} could not be queued: {}", executor, ex.getMessage());
+						}
+					}
+				});
+	}
+
+	private void probe(final String executor, final List<WorkItemRecord> held) {
+		final Optional<ExecutorEndpoint> endpoint = directory.byName(executor);
+		if (endpoint.isEmpty()) {
+			if (directory.isComplete()) {
+				held.forEach(i -> suspect(i, false, "executor " + executor + " is no longer registered"));
+			} else {
+				held.forEach(i -> suspicions.remove(i.getUid()));
+			}
+			return;
+		}
+		for (int n = 0; n < held.size(); n++) {
+			final WorkItemRecord item = held.get(n);
+			try {
+				final ExecutionState answer = gateway.status(endpoint.get(), item.getUid());
+				if (answer == null || answer.state() == null || Set.of("ACCEPTED", "RUNNING").contains(answer.state())) {
+					suspicions.remove(item.getUid());
+				} else {
+					suspect(item, true, "executor " + executor + " does not run it (" + answer.state() + ")");
+				}
+			} catch (final AuthException | ForbiddenException | InvalidParameterException | DataNotFoundException ex) {
+				logger.warn("{} refused workflowExecution.get-status: {}", executor, ex.getMessage());
+				suspicions.remove(item.getUid());
+			} catch (final RuntimeException ex) {
+				// one unanswered question is enough for this round
+				held.subList(n, held.size()).forEach(i -> suspect(i, false, "executor " + executor + " cannot be reached: " + ex.getMessage()));
+				return;
+			}
+		}
+	}
+
+	private void suspect(final WorkItemRecord item, final boolean reachable, final String reason) {
+		final long now = System.currentTimeMillis();
+		final Suspicion s = suspicions.compute(item.getUid(), (uid, old) -> old == null || old.reachable() != reachable ? new Suspicion(reachable, now) : old);
+		if (s.sinceMillis() < now && (reachable || now - s.sinceMillis() >= livenessLostAfterSeconds * 1000)) {
+			suspicions.remove(item.getUid());
+			lost(item.getId(), reason);
+		}
+	}
+
+	/** The executor will not report any more: a step that is not bound goes to the next executor, a bound one ends with ERROR. */
+	private void lost(final long itemId, final String reason) {
+		final List<Runnable> outbound = new ArrayList<>();
+		final long sessionId = items.findById(itemId).orElseThrow().getSessionId();
+		long next = ERROR_REDRIVE;
+		synchronized (lock(sessionId)) {
+			final WorkItemRecord item = items.findById(itemId).orElseThrow();
+			if (item.getState() != State.DISPATCHED && item.getState() != State.CLAIMED && item.getState() != State.BOUND) {
+				return; // reported meanwhile
+			}
+			final Ctx c = load(sessionId);
+			if (!c.z().isRunning()) {
+				return;
+			}
+			final String message = "Lost: " + reason;
+			item.setMessage(message);
+			worklog.log(sessionId, c.recipe().key(), item.getStepName(), "Work item lost", reason);
+			if (item.getState() == State.BOUND) {
+				next = error(c, item, c.z().graph().step(item.getStepName()), message);
+			} else {
+				item.setState(State.FAILED); // the equipment is used only after S-Bind, so another executor can take it
+			}
+			items.saveAndFlush(item);
+			if (!c.z().isRunning() && c.z().status() == SessionStatus.failed) {
+				afterFailure(c, outbound);
+			}
+			save(c);
+		}
+		outbound.forEach(this::runQuietly);
+		if (next == ERROR_REDRIVE) {
+			worker.execute(() -> drive(sessionId));
+		} else if (next >= 0) {
+			releaseRetryAfter(itemId, next);
 		}
 	}
 

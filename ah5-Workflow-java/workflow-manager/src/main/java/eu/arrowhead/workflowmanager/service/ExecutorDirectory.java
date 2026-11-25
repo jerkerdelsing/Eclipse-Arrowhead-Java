@@ -58,6 +58,7 @@ public class ExecutorDirectory {
 
 	private volatile List<ExecutorEndpoint> cached = List.of();
 	private volatile long cachedAt;
+	private volatile boolean complete = true;
 
 	public record ExecutorEndpoint(String name, String scheme, String address, int port, String basePath, Set<String> capabilities, Set<String> services,
 			String workstation, String mode, String source) {
@@ -87,7 +88,9 @@ public class ExecutorDirectory {
 			if (!standalone.isStandalone()) {
 				try {
 					discover().forEach(e -> byName.putIfAbsent(e.name(), e));
+					complete = true;
 				} catch (final RuntimeException ex) {
+					complete = false;
 					logger.warn("Executor discovery failed: {}", ex.getMessage());
 				}
 			}
@@ -95,6 +98,12 @@ public class ExecutorDirectory {
 			cachedAt = System.currentTimeMillis();
 		}
 		return cached;
+	}
+
+	/** Whether the last discovery succeeded; otherwise an executor missing from the list may well exist. */
+	public boolean isComplete() {
+		all();
+		return complete;
 	}
 
 	public void invalidate() {

@@ -12,6 +12,8 @@ public final class WorkflowManagerDefaults extends Defaults {
 	public static final String DISCOVERY_CACHE_SECONDS_DEFAULT = "10";
 	public static final String DEFAULT_DISPATCH_DEFAULT = "push";
 	public static final String CLAIM_TIMEOUT_DEFAULT = "300";
+	public static final String LIVENESS_CHECK_SECONDS_DEFAULT = "30";
+	public static final String LIVENESS_LOST_AFTER_SECONDS_DEFAULT = "300";
 	public static final String WORKER_THREADS_DEFAULT = "8";
 	public static final String LEASE_DEFAULT_DURATION_DEFAULT = "120";
 

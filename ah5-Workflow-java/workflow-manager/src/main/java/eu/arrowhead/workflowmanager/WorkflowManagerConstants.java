@@ -22,6 +22,12 @@ public final class WorkflowManagerConstants {
 	public static final String $DEFAULT_DISPATCH_WD = "${" + DEFAULT_DISPATCH + ":" + WorkflowManagerDefaults.DEFAULT_DISPATCH_DEFAULT + "}";
 	public static final String CLAIM_TIMEOUT = "workflow.pull.claim-timeout";
 	public static final String $CLAIM_TIMEOUT_WD = "${" + CLAIM_TIMEOUT + ":" + WorkflowManagerDefaults.CLAIM_TIMEOUT_DEFAULT + "}";
+	/** How often executors are asked (workflowExecution.get-status) whether they still run the work items they hold; 0 = never. */
+	public static final String LIVENESS_CHECK_SECONDS = "workflow.executor.liveness.check-seconds";
+	public static final String $LIVENESS_CHECK_SECONDS_WD = "${" + LIVENESS_CHECK_SECONDS + ":" + WorkflowManagerDefaults.LIVENESS_CHECK_SECONDS_DEFAULT + "}";
+	/** How long an executor may be unreachable before the work items it holds count as lost. */
+	public static final String LIVENESS_LOST_AFTER_SECONDS = "workflow.executor.liveness.lost-after-seconds";
+	public static final String $LIVENESS_LOST_AFTER_SECONDS_WD = "${" + LIVENESS_LOST_AFTER_SECONDS + ":" + WorkflowManagerDefaults.LIVENESS_LOST_AFTER_SECONDS_DEFAULT + "}";
 	public static final String WORKER_THREADS = "workflow.worker.threads";
 	public static final String $WORKER_THREADS_WD = "${" + WORKER_THREADS + ":" + WorkflowManagerDefaults.WORKER_THREADS_DEFAULT + "}";
 	public static final String LEASE_DEFAULT_DURATION = "workflow.lease.default-duration";
